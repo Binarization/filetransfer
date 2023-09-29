@@ -10,6 +10,9 @@
     "format": "prettier --write src/"
   },
   "dependencies": {
+    "ant-design-vue": "^4.0.3",
+    "buefy": "^0.9.25",
+    "peerjs": "^1.5.1",
     "vue": "^3.3.4",
     "vue-router": "^4.2.4"
   },
@@ -20,6 +23,7 @@
     "eslint": "^8.49.0",
     "eslint-plugin-vue": "^9.17.0",
     "prettier": "^3.0.3",
+    "unplugin-vue-components": "^0.25.2",
     "vite": "^4.4.9"
   }
 }
