@@ -38,7 +38,10 @@ export default {
     methods: {
         async initCamera() {
             try {
+                // 先请求摄像头权限
+                await navigator.mediaDevices.getUserMedia({ video: true })
                 const devices = await navigator.mediaDevices.enumerateDevices()
+                console.log(devices)
                 this.devices = devices.filter(device => device.kind === 'videoinput')
                 if (this.devices.length === 0) {
                     message.error('没有找到摄像头')
@@ -48,7 +51,6 @@ export default {
                 await this.switchCamera()
             } catch (error) {
                 console.error(error)
-                message.error('开启摄像头失败，请确认是否已授权访问摄像头')
                 return
             }
         },
