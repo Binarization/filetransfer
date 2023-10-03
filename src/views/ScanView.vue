@@ -3,7 +3,7 @@
         <a-spin :spinning="cameraLoading">
             <div class="camera-wrapper">
                 <div v-if="!cameraLoading" class="animation"></div>
-                <qrcode-stream :constraints="constraints" @camera-on="onCameraOn" @detect="onDetect" @error="onCameraError"></qrcode-stream>
+                <qrcode-stream :paused="cameraReload" :constraints="constraints" @camera-on="onCameraOn" @detect="onDetect" @error="onCameraError"></qrcode-stream>
             </div>
         </a-spin>
         <a-select v-model:value="selectedDeviceId" style="width: 200px" @change="switchCamera">
@@ -30,6 +30,7 @@ export default {
             devices: [],
             selectedDeviceId: null,
             cameraLoading: true, 
+            cameraReload: false, 
         }
     },
     mounted() {
@@ -41,7 +42,6 @@ export default {
                 // 先请求摄像头权限
                 await navigator.mediaDevices.getUserMedia({ video: true })
                 const devices = await navigator.mediaDevices.enumerateDevices()
-                console.log(devices)
                 this.devices = devices.filter(device => device.kind === 'videoinput')
                 if (this.devices.length === 0) {
                     message.error('没有找到摄像头')
@@ -59,7 +59,11 @@ export default {
                 this.stream.getTracks().forEach(track => track.stop())
             }
             this.cameraLoading = true
+            this.cameraReload = true
             this.constraints = { deviceId: { exact: this.selectedDeviceId } }
+            setTimeout(() => {
+                this.cameraReload = false
+            }, 1)
         },
         onCameraOn() {
             this.cameraLoading = false
