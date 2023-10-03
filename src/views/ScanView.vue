@@ -8,7 +8,7 @@
         </a-spin>
         <a-select v-model:value="selectedDeviceId" style="width: 200px" @change="switchCamera">
             <a-select-option v-for="(device, index) in devices" :key="index" :value="device.deviceId">
-                {{ device.label }}
+                {{ device.label ? device.label : `摄像头 ${index + 1}` }}
             </a-select-option>
         </a-select>
     </div>
