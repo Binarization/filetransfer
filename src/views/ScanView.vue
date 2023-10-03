@@ -75,7 +75,7 @@ export default {
                 try {
                     url = new URL(result[i].rawValue)
                 } catch (error) {
-                    console.error(error)
+                    console.log(error)
                 }
                 if(url && (url.protocol === 'http:' || url.protocol === 'https:')) {
                     message.info(`扫描结果：${result[i].rawValue}`)
