@@ -10,9 +10,11 @@
     "format": "prettier --write src/"
   },
   "dependencies": {
+    "@ant-design/icons-vue": "^7.0.0",
     "ant-design-vue": "^4.0.3",
     "peerjs": "^1.5.1",
     "vue": "^3.3.4",
+    "vue-qrcode-reader": "^5.3.6",
     "vue-router": "^4.2.4"
   },
   "devDependencies": {

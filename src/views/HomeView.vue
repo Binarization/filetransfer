@@ -1,15 +1,23 @@
 <template>
     <div class="homepage">
-        <div class="image-container">
-            <img :src="logo" alt="Website Image" />
+        <div class="logo">
+            <div class="image-container">
+                <img :src="logo" alt="Website Image" />
+            </div>
+            <h1 class="title">Direct Transfer</h1>
         </div>
-        <h1 class="title">Direct Transfer</h1>
         <div class="buttons">
-            <router-link to="/sender">
-                <button class="send-button">我要发送文件</button>
+            <router-link to="/transfer">
+                <a-button type="primary" size="large" class="send-button">
+                    <IconFont type="icon-create" style="color: #fff" />
+                    创建一个新会话
+                </a-button>
             </router-link>
-            <router-link to="/receiver">
-                <button class="receive-button">我要接收文件</button>
+            <router-link to="/scan">
+                <a-button size="large" class="receive-button">
+                    <IconFont type="icon-scan_qr" style="color: #0099ff" />
+                    加入现有会话
+                </a-button>
             </router-link>
         </div>
         <div class="footer">
@@ -20,7 +28,6 @@
   
 <script>
 import logo from '@/assets/logo.png';
-import { message } from 'ant-design-vue';
 
 export default {
     name: "HomePage",
@@ -34,16 +41,30 @@ export default {
   
 <style scoped>
 .homepage {
-    width: 100vw;
+    width: 75vw;
+    max-width: 768px; 
     height: 100vh;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-evenly;
+    align-items: center;
+    margin: auto;
+}
+
+/* verticle screen */
+@media screen and (max-width: 768px) {
+    .homepage {
+        flex-direction: column;
+        height: 55vh;
+        padding-top: 40vh;
+    }
+}
+
+.logo {
     display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    text-align: center;
-    font-family: 'Open Sans', sans-serif;
-    padding: 20px;
-    user-select: none;
 }
 
 img {
@@ -52,33 +73,38 @@ img {
 }
 
 .title {
+    text-align: center;
     font-size: 36px;
     font-weight: bold;
     color: #333;
 }
 
 .buttons {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-evenly;
+    align-items: center;
     margin-top: 20px;
 }
 
-.send-button,
-.receive-button {
-    background-color: #0099ff;
-    color: #fff;
-    padding: 12px 24px;
-    /* 增加按钮内边距 */
-    border: none;
-    border-radius: 5px;
-    font-size: 18px;
-    margin: 10px;
-    cursor: pointer;
-    transition: background-color 0.3s ease;
-    /* 添加过渡效果 */
+.buttons a:not(:last-child) {
+    margin-bottom: 20px;
 }
 
-.send-button:hover,
-.receive-button:hover {
-    background-color: #0056b3;
+.send-button {
+    height: fit-content;
+    background-color: #0099ff;
+    color: #fff;
+    font-size: 21px;
+    padding: 7px 17px;
+}
+
+.receive-button {
+    height: fit-content;
+    background-color: #fff;
+    color: #0099ff;
+    font-size: 21px;
+    padding: 7px 17px;
 }
 
 .footer {
@@ -86,7 +112,7 @@ img {
     flex-direction: row;
     justify-content: center;
     position: absolute;
-    bottom: 21px;
+    top: 95vh;
     left: 0;
     right: 0;
 }

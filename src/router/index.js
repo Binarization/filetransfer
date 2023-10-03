@@ -10,20 +10,20 @@ const router = createRouter({
             component: HomeView
         },
         {
-            path: '/receiver',
-            name: 'receiver',
+            path: '/scan',
+            name: 'scan',
             // route level code-splitting
             // this generates a separate chunk (About.[hash].js) for this route
             // which is lazy-loaded when the route is visited.
-            component: () => import('../views/ReceiverView.vue')
+            component: () => import('../views/ScanView.vue')
         },
         {
-            path: '/sender',
-            name: 'sender',
+            path: '/transfer',
+            name: 'transfer',
             // route level code-splitting
             // this generates a separate chunk (About.[hash].js) for this route
             // which is lazy-loaded when the route is visited.
-            component: () => import('../views/SenderView.vue')
+            component: () => import('../views/TransferView.vue')
         },
     ]
 })
