@@ -118,11 +118,11 @@ export default {
     position: relative;
     width: 300px;
     height: 300px;
-    /* 画一个border边框，间距3px远 */
     border: 5px solid #0099ff;
     border-radius: 50px;
     overflow: hidden;
     margin-bottom: 17px;
+    filter: opacity(1); /* 调用显卡加速 */
 }
 
 .camera-wrapper .animation {
