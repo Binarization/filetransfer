@@ -71,14 +71,15 @@ export default {
         onDetect(result) {
             console.log(result)
             for(let i = 0; i < result.length; i++) {
+                let url = null
                 try {
-                    const url = new URL(result[i].rawValue)
-                    if(url.protocol === 'http:' || url.protocol === 'https:') {
-                        message.info(`扫描结果：${result[i].rawValue}`)
-                        return
-                    }
+                    url = new URL(result[i].rawValue)
                 } catch (error) {
                     console.error(error)
+                }
+                if(url && (url.protocol === 'http:' || url.protocol === 'https:')) {
+                    message.info(`扫描结果：${result[i].rawValue}`)
+                    return
                 }
             }
         }, 
