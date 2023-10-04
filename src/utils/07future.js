@@ -6,6 +6,6 @@ export const allowReceive = () => {
     return !isPad()
 }
 
-function isPad() {
+export const isPad = () => {
     return window.androidCallback && window.androidCallback.onStudentNameGet && window.androidCallback.onImageClick
 }
