@@ -18,7 +18,7 @@ const router = createRouter({
             component: () => import('../views/ScanView.vue')
         },
         {
-            path: '/transfer',
+            path: '/transfer/:id?',
             name: 'transfer',
             // route level code-splitting
             // this generates a separate chunk (About.[hash].js) for this route
