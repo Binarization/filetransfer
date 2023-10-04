@@ -20,7 +20,7 @@
                 </a-button>
             </router-link>
         </div>
-        <div class="footer">
+        <div class="footer" :style="getFooterStyle">
             <span>Powered by 一零次元</span>
         </div>
     </div>
@@ -35,6 +35,13 @@ export default {
         return {
             logo: logo,
         };
+    },
+    computed: {
+        getFooterStyle() {
+            return {
+                top: `${window.innerHeight - 17 * 2}px`
+            }
+        },
     },
 };
 </script>
@@ -112,7 +119,6 @@ img {
     flex-direction: row;
     justify-content: center;
     position: absolute;
-    top: calc(100% - 17px * 2);
     left: 0;
     right: 0;
 }
