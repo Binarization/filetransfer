@@ -58,7 +58,6 @@ export default {
     margin: auto;
 }
 
-/* verticle screen */
 @media screen and (max-width: 768px) {
     .homepage {
         flex-direction: column;
