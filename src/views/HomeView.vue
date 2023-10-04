@@ -112,7 +112,7 @@ img {
     flex-direction: row;
     justify-content: center;
     position: absolute;
-    top: 95vh;
+    top: calc(100vh - 17px * 2);
     left: 0;
     right: 0;
 }
