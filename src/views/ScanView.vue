@@ -1,9 +1,19 @@
 <template>
     <div class="camera-container">
+        <a-float-button type="primary" @click="goHome" :style="{
+            top: '32px',
+            left: '32px',
+            transform: 'scale(1.2)',
+        }">
+            <template #icon>
+                <LeftOutlined />
+            </template>
+        </a-float-button>
         <a-spin :spinning="cameraLoading">
             <div class="camera-wrapper">
                 <div v-if="!cameraLoading" class="animation"></div>
-                <qrcode-stream :paused="cameraReload" :constraints="constraints" @camera-on="onCameraOn" @detect="onDetect" @error="onCameraError"></qrcode-stream>
+                <qrcode-stream :paused="cameraReload" :constraints="constraints" @camera-on="onCameraOn" @detect="onDetect"
+                    @error="onCameraError"></qrcode-stream>
             </div>
         </a-spin>
         <a-select v-model:value="selectedDeviceId" style="width: 200px" @change="switchCamera">
@@ -16,27 +26,32 @@
 
 <script>
 import { message, Select } from 'ant-design-vue'
+import { LeftOutlined } from '@ant-design/icons-vue'
 import { QrcodeStream } from 'vue-qrcode-reader'
 
 export default {
     components: {
         ASelect: Select,
         ASelectOption: Select.Option,
-        QrcodeStream
+        LeftOutlined,
+        QrcodeStream,
     },
     data() {
         return {
             constraints: null,
             devices: [],
             selectedDeviceId: null,
-            cameraLoading: true, 
-            cameraReload: false, 
+            cameraLoading: true,
+            cameraReload: false,
         }
     },
     mounted() {
         this.initCamera()
     },
     methods: {
+        goHome() {
+            this.$router.push('/')
+        },
         async initCamera() {
             try {
                 // 先请求摄像头权限
@@ -70,19 +85,19 @@ export default {
         },
         onDetect(result) {
             console.log(result)
-            for(let i = 0; i < result.length; i++) {
+            for (let i = 0; i < result.length; i++) {
                 let url = null
                 try {
                     url = new URL(result[i].rawValue)
                 } catch (error) {
                     console.log(error)
                 }
-                if(url && (url.protocol === 'http:' || url.protocol === 'https:')) {
+                if (url && (url.protocol === 'http:' || url.protocol === 'https:')) {
                     message.info(`扫描结果：${result[i].rawValue}`)
                     return
                 }
             }
-        }, 
+        },
         onCameraError(error) {
             console.error(error)
             if (error.name === 'NotAllowedError') {
@@ -123,7 +138,8 @@ export default {
     border-radius: 50px;
     overflow: hidden;
     margin-bottom: 17px;
-    filter: opacity(1); /* 调用显卡加速 */
+    filter: opacity(1);
+    /* 调用显卡加速 */
 }
 
 .camera-wrapper .animation {
@@ -132,7 +148,7 @@ export default {
     left: 0;
     width: 100%;
     height: 100%;
-    background: linear-gradient(0deg, rgba(255,255,255,0) 47%, rgb(0 153 255 / 35%) 50%, rgba(255,255,255,0) 53%);
+    background: linear-gradient(0deg, rgba(255, 255, 255, 0) 47%, rgb(0 153 255 / 35%) 50%, rgba(255, 255, 255, 0) 53%);
     animation: scan 5s ease-in-out infinite;
     z-index: 999;
 }
@@ -141,9 +157,11 @@ export default {
     0% {
         transform: translateY(-55%);
     }
+
     50% {
         transform: translateY(55%);
     }
+
     100% {
         transform: translateY(-55%);
     }

@@ -1,22 +1,39 @@
 <template>
     <div class="transfer-container">
-        <div v-if="role == 'initiator'" class="container sidebar-container">
-            <span class="container-title">加入会话</span>
-            <div class="qr-container">
-                <a-qrcode :value="getQRCodeLink" :status="isQRCodeLoading" />
-                <a-input-group class="peer-id-lable">
-                    <a-input v-model:value="peerId" />
-                    <a-tooltip title="复制会话链接">
-                        <a-button @click="copyPeerId">
-                            <template #icon>
-                                <CopyOutlined />
-                            </template>
-                        </a-button>
-                    </a-tooltip>
-                </a-input-group>
+        <div v-if="role == 'initiator'" class="sidebar-container">
+            <a-button class="home-button" type="primary" :size="size" @click="goHome">
+                <template #icon>
+                    <DisconnectOutlined />
+                </template>
+                关闭会话
+            </a-button>
+            <div class="container">
+                <span class="container-title">加入链接</span>
+                <div class="qr-container">
+                    <a-qrcode :value="getQRCodeLink" :status="isQRCodeLoading" />
+                    <a-input-group class="peer-id-lable">
+                        <a-input v-model:value="genLink" />
+                        <a-tooltip title="复制会话链接">
+                            <a-button @click="copyPeerId">
+                                <template #icon>
+                                    <CopyOutlined />
+                                </template>
+                            </a-button>
+                        </a-tooltip>
+                    </a-input-group>
+                </div>
+            </div>
+            <div class="container">
+                <span class="container-title">当前连接</span>
             </div>
         </div>
         <div class="content-container">
+            <a-button v-if="role == 'connector'" class="home-button" type="primary" size="large" @click="goHome">
+                <template #icon>
+                    <DisconnectOutlined />
+                </template>
+                断开连接
+            </a-button>
             <div class="container">
                 <span class="container-title">发送文件</span>
                 <a-upload-dragger name="file" list-type="picture-card" :multiple="true" :disabled="!allowUpload"
@@ -47,13 +64,14 @@
 
 <script>
 import { Peer } from 'peerjs'
-import { CopyOutlined, InboxOutlined } from '@ant-design/icons-vue'
+import { CopyOutlined, DisconnectOutlined, InboxOutlined } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
 import { allowUpload, allowReceive, isPad } from '@/utils/07future'
 
 export default {
     components: {
         CopyOutlined,
+        DisconnectOutlined,
         InboxOutlined,
     },
     data() {
@@ -116,6 +134,9 @@ export default {
             // 复制会话连接
             navigator.clipboard.writeText(this.getQRCodeLink)
         },
+        goHome() {
+            this.$router.push('/')
+        },
         handleConnection() {
             // 处理连接
             this.conn.on('open', () => {
@@ -171,7 +192,7 @@ export default {
 
 <style scoped>
 .transfer-container {
-    width: 100vw;
+    width: 100%;
     height: 90vh;
     display: flex;
     flex-direction: row;
@@ -180,7 +201,15 @@ export default {
     padding-top: 10vh;
 }
 
+.home-button {
+    width: 100%;
+    height: fit-content;
+    font-size: 17px;
+    padding: 5px 0px;
+}
+
 .transfer-container .container {
+    width: 100%;
     display: flex;
     flex-direction: column;
     background: #fff;
@@ -193,12 +222,12 @@ export default {
     color: rgb(22 119 255);
     font-size: 20px;
     font-weight: bold;
-    margin-bottom: 9px!important;
+    margin-bottom: 9px !important;
     padding-left: 7px;
 }
 
 .sidebar-container {
-    width: fit-content;
+    width: 25vw;
     height: fit-content;
     display: flex;
     flex-direction: column;
@@ -207,7 +236,7 @@ export default {
     margin-right: 20px;
 }
 
-.sidebar-container>*:not(:last-child) {
+.sidebar-container>*:not(:last-child), .content-container>*:not(:last-child) {
     margin-bottom: 13px;
 }
 
@@ -241,13 +270,9 @@ export default {
     align-items: center;
 }
 
-.content-container > * {
+.content-container>* {
     width: 100%;
-    max-height: 44vh;
-}
-
-.content-container>*:not(:last-child) {
-    margin-bottom: 20px;
+    max-height: 65vh;
 }
 
 .ant-upload-wrapper {
@@ -285,8 +310,24 @@ export default {
         padding-top: 5vh;
     }
 
-    .sidebar-container {
+    .sidebar-container,
+    .content-container {
         width: 85vw;
+        margin-right: 0;
+        margin-bottom: 20px;
+    }
+
+    .sidebar-container>*:not(:last-child), .content-container>*:not(:last-child) {
+        margin-bottom: 20px;
+    }
+
+    .qr-container{
+        flex-direction: row;
+    }
+
+    .peer-id-lable {
+        width: 30vw;
+        margin-left: 13px;
     }
 }
 </style>
