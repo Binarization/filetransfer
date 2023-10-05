@@ -1,7 +1,7 @@
 <template>
     <div class="transfer-container">
         <div v-if="role == 'initiator'" class="sidebar-container">
-            <a-button class="home-button" type="primary" :size="size" @click="goHome">
+            <a-button class="home-button" type="primary" @click="goHome">
                 <template #icon>
                     <DisconnectOutlined />
                 </template>
