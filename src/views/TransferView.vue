@@ -106,6 +106,8 @@ export default {
         },
     },
     mounted() {
+        // PeerJS异常处理
+        this.peer.on('error', handlePeerJSError)
         // 判断路由是否传入id
         if (this.$route.params.id) {
             this.role = 'connector'
@@ -153,6 +155,10 @@ export default {
                 message.success('连接成功')
             })
         },
+        handlePeerJSError(err) {
+            console.log(err)
+            message.error(err.message)
+        }, 
         handlePreview(file) {
             console.log(file)
             if (isPad()) {
