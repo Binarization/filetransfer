@@ -366,7 +366,7 @@ export default {
     height: 66px;
     text-align: center;
     background: rgba(0, 0, 0, 0.02);
-    border: 1px dashed #d9d9d9;
+    border: 1px solid #1677ff;
     border-radius: 8px;
     transition: border-color 0.3s;
     /* 内部文字 */
