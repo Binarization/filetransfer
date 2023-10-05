@@ -25,6 +25,7 @@
             </div>
             <div class="container">
                 <span class="container-title">当前连接</span>
+                <div class="placeholder">暂无连接</div>
             </div>
         </div>
         <div class="content-container">
@@ -49,7 +50,7 @@
             </div>
             <div class="container">
                 <span class="container-title">接收文件</span>
-                <div class="receive-placeholder">暂无文件</div>
+                <div class="placeholder">暂无文件</div>
                 <a-upload>
                 </a-upload>
             </div>
@@ -206,6 +207,7 @@ export default {
     height: fit-content;
     font-size: 17px;
     padding: 5px 0px;
+    border-radius: 13px;
 }
 
 .transfer-container .container {
@@ -284,7 +286,7 @@ export default {
     overflow: auto;
 }
 
-.receive-placeholder {
+.placeholder {
     position: relative;
     width: 100%;
     height: 66px;
