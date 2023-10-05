@@ -150,6 +150,12 @@ export default {
             navigator.clipboard.writeText(this.getQRCodeLink)
         },
         goHome() {
+            // 关闭会话
+            if (this.role == 'initiator') {
+                this.peer.destroy()
+            } else if(this.role == 'connector') {
+                this.conn.close()
+            }
             this.$router.push('/')
         },
         send(type, detail) {
