@@ -8,7 +8,7 @@ import router from './router'
 import { createFromIconfontCN } from '@ant-design/icons-vue'
 
 const IconFont = createFromIconfontCN({
-    scriptUrl: '//at.alicdn.com/t/c/font_4273299_uhj7m024np8.js'
+    scriptUrl: '//at.alicdn.com/t/c/font_4273299_442pagoo78q.js'
 })
 
 const app = createApp(App)

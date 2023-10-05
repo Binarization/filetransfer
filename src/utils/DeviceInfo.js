@@ -3,15 +3,31 @@ import { getStuName, isPad } from './07future'
 
 export const getDeviceName = () => {
     if(isPad()) {
-        return `${getStuName()}的领启平板`
+        return [getStuName(), '领启平板']
     } else {
-        return `${getDeviceType()}的${getBrowserName()}`
+        return [getDeviceTypeName(), getBrowserName()]
     }
 }
 
 export const getDeviceType = () => {
+    if(isPad()) {
+        return '07pad'
+    }
     const parser = new UAParser()
     const result = parser.getResult()
+    return result.device.type || 'pc'
+}
+
+export const getDeviceTypeName = () => {
+    const parser = new UAParser()
+    const result = parser.getResult()
+    if(result.os.name === 'iOS') {
+        if(result.device.type === 'mobile') {
+            return 'iPhone'
+        } else if(result.device.type === 'tablet') {
+            return 'iPad'
+        }
+    }
     return (osNameDict[result.os.name] || result.os.name) + (deviceTypeDict[result.device.type] || '')
 }
 
@@ -19,10 +35,6 @@ export const getBrowserName = () => {
     const parser = new UAParser()
     const result = parser.getResult()
     return (browserNameDict[result.browser.name] || result.browser.name) + '浏览器'
-}
-
-export default {
-    getDeviceName
 }
 
 const browserNameDict = {
@@ -69,4 +81,11 @@ const deviceTypeDict = {
     'wearable': '可穿戴设备',
     'console': '游戏机',
     'embedded': '嵌入式设备',
+}
+
+export default {
+    getDeviceName,
+    getDeviceType,
+    getDeviceTypeName,
+    getBrowserName,
 }
