@@ -161,8 +161,16 @@ export default {
         }, 
         handleConnection(conn) {
             if (this.conn) {
-                // 如果已经有连接，关闭旧连接
-                this.conn.close()
+                // 如果已经有连接，拒绝新连接
+                conn.on('open', () => {
+                    conn.send(JSON.stringify({
+                        type: 'refuse'
+                    }))
+                    setTimeout(() => {
+                        conn.close()
+                    }, 3000)
+                })
+                return
             }
             this.conn = conn
             // 处理连接
@@ -174,8 +182,17 @@ export default {
                         let json = JSON.parse(data)
                         console.log(json)
                         switch(json.type) {
+                            // 握手
                             case 'handshake':
                                 this.peerInfo = json.detail.device
+                                break
+                            
+                            // 拒绝连接
+                            case 'refuse':
+                                message.error('会话已有连接，无法加入')
+                                this.role = 'rejectee'
+                                this.conn.close()
+                                this.$router.push('/')
                                 break
                             
                             default:
@@ -184,7 +201,6 @@ export default {
                         }
                     } catch(err) {
                         console.log(err)
-                        message.error('握手失败')
                     }
                 })
 
