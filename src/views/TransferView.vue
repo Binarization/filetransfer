@@ -172,12 +172,12 @@ export default {
 <style scoped>
 .transfer-container {
     width: 100vw;
-    height: 80vh;
+    height: 90vh;
     display: flex;
     flex-direction: row;
     justify-content: center;
     align-items: flex-start;
-    padding-top: 20vh;
+    padding-top: 10vh;
 }
 
 .transfer-container .container {
@@ -243,10 +243,20 @@ export default {
 
 .content-container > * {
     width: 100%;
+    max-height: 44vh;
 }
 
 .content-container>*:not(:last-child) {
     margin-bottom: 20px;
+}
+
+.ant-upload-wrapper {
+    display: contents;
+}
+
+:global(.ant-upload-list) {
+    margin: 7px;
+    overflow: auto;
 }
 
 .receive-placeholder {
@@ -257,7 +267,6 @@ export default {
     background: rgba(0, 0, 0, 0.02);
     border: 1px dashed #d9d9d9;
     border-radius: 8px;
-    cursor: pointer;
     transition: border-color 0.3s;
     /* 内部文字 */
     display: flex;
