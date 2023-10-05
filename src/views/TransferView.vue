@@ -68,6 +68,7 @@ import { Peer } from 'peerjs'
 import { CopyOutlined, DisconnectOutlined, InboxOutlined } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
 import { allowUpload, allowReceive, isPad } from '@/utils/07future'
+import DeviceInfo from '@/utils/DeviceInfo'
 
 export default {
     components: {
