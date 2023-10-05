@@ -21,13 +21,15 @@
             </router-link>
         </div>
         <div class="footer" :style="getFooterStyle">
-            <span>Powered by 一零次元</span>
+            <span>Powered by</span>
+            <StudioLogo style="height: 23px; margin-left: 7px;" />
         </div>
     </div>
 </template>
   
 <script>
 import logo from '@/assets/logo.png';
+import StudioLogo from '@/components/StudioLogo.vue';
 
 export default {
     name: "HomePage",
@@ -36,10 +38,14 @@ export default {
             logo: logo,
         };
     },
+    components: {
+        StudioLogo,
+    },
     computed: {
         getFooterStyle() {
             return {
-                top: `${window.innerHeight - 17 * 2}px`
+                top: `${window.innerHeight - 17 * 2 - 3}px`, 
+                height: '34px', 
             }
         },
     },
@@ -117,6 +123,7 @@ img {
     display: flex;
     flex-direction: row;
     justify-content: center;
+    align-items: center;
     position: absolute;
     left: 0;
     right: 0;
