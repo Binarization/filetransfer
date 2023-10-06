@@ -243,7 +243,7 @@ export default {
 
             switch(err.type) {
                 case PeerJSError.PeerErrorType.Network:
-                    this.peer.reconnect()
+                    this.tryReconnect()
                     break
             }
 
@@ -253,6 +253,24 @@ export default {
                 message.error(`PeerJSError: ${err.message}`)
             }
         }, 
+        tryReconnect() {
+            let retryCount = 0
+            let retryInterval = setInterval(() => {
+                if(!this.peer.disconnected) {
+                    console.log('reconnected')
+                    clearInterval(retryInterval)
+                    return
+                }
+                if(retryCount >= 5) {
+                    console.log('reconnect failed')
+                    clearInterval(retryInterval)
+                    return
+                }
+                retryCount++
+                console.log('reconnecting...')
+                this.peer.reconnect()
+            }, 2000)
+        },
         handlePreview(file) {
             console.log(file)
             if (isPad()) {
