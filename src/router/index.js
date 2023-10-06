@@ -25,6 +25,12 @@ const router = createRouter({
             // which is lazy-loaded when the route is visited.
             component: () => import('../views/TransferView.vue')
         },
+        {
+            path: '/warning',
+            name: 'warning',
+            props: true,
+            component: () => import('../views/WarningView.vue')
+        },
     ]
 })
 
