@@ -12,7 +12,7 @@
                 <div class="qr-container">
                     <a-qrcode :value="getQRCodeLink" :status="isQRCodeLoading" />
                     <a-input-group class="peer-id-lable">
-                        <a-input v-model:value="genLink" />
+                        <a-input :value="genLink" :readonly="true" />
                         <a-tooltip title="复制会话链接">
                             <a-button @click="copyPeerId">
                                 <template #icon>
@@ -75,7 +75,7 @@ import { CopyOutlined, DisconnectOutlined, InboxOutlined } from '@ant-design/ico
 import { message } from 'ant-design-vue'
 import { allowUpload, allowReceive, isPad, getStuClass, getStuName, getStuId } from '@/utils/07future'
 import DeviceInfo from '@/utils/DeviceInfo'
-import { getPeerJSErrorMsg } from '@/utils/PeerJSError'
+import PeerJSError from '@/utils/PeerJSError'
 
 export default {
     components: {
@@ -239,9 +239,16 @@ export default {
             })
         },
         handlePeerJSError(err) {
-            console.log(err)
-            if(getPeerJSErrorMsg(err)) {
-                message.error(getPeerJSErrorMsg(err))
+            console.log(err.type, err)
+
+            switch(err.type) {
+                case PeerJSError.PeerErrorType.Network:
+                    this.peer.reconnect()
+                    break
+            }
+
+            if(PeerJSError.getPeerJSErrorMsg(err)) {
+                message.error(PeerJSError.getPeerJSErrorMsg(err))
             } else {
                 message.error(`PeerJSError: ${err.message}`)
             }

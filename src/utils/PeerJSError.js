@@ -99,3 +99,8 @@ export const PeerErrorType = {
      */
     WebRTC: "webrtc",
 }
+
+export default {
+    getPeerJSErrorMsg,
+    PeerErrorType,
+}
