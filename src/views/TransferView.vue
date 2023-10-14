@@ -27,6 +27,10 @@
                 <span class="container-title">当前连接</span>
                 <div v-if="peerInfo === null" class="placeholder">暂无连接</div>
                 <div v-else class="peer-info-container">
+                    <div v-if="role == 'initiator'" class="disconnect-container" @click="disconnectPeer()">
+                        <DisconnectOutlined />
+                        断开当前连接
+                    </div>
                     <div class="icon">
                         <IconFont v-if="peerInfo.type == 'pc'" type="icon-pc" />
                         <IconFont v-else-if="peerInfo.type == 'mobile'" type="icon-phone" />
@@ -92,6 +96,7 @@ export default {
             peerInfo: null,
             previewVisible: false,
             previewSrc: '',
+            lastHeartbeat: -1,
         }
     },
     computed: {
@@ -114,6 +119,10 @@ export default {
         },
     },
     mounted() {
+        // 关闭先前未关闭会话
+        if(this.conn) {
+            this.conn.close()
+        }
         // PeerJS异常处理
         this.peer.on('error', this.handlePeerJSError)
         // 判断路由是否传入id
@@ -142,6 +151,11 @@ export default {
             this.peer.on('disconnected', () => {
                 console.log('peer disconnected')
             })
+        }
+    },
+    unmounted() {
+        if(this.peer) {
+            this.peer.destroy()
         }
     },
     methods: {
@@ -193,6 +207,18 @@ export default {
                                 this.peerInfo = json.detail.device
                                 break
                             
+                            // 心跳
+                            case 'ping':
+                                this.lastHeartbeat = Date.now()
+                                this.conn.send(JSON.stringify({
+                                    type: 'pong'
+                                }))
+                                break
+                            
+                            case 'pong':
+                                this.lastHeartbeat = Date.now()
+                                break
+                            
                             // 拒绝连接
                             case 'refuse':
                                 message.error('会话已有连接，无法加入')
@@ -207,10 +233,11 @@ export default {
                         }
                     } catch(err) {
                         console.log(err)
+                        this.conn.close()
                     }
                 })
 
-                // Send messages
+                // 发起握手
                 this.send('handshake',{
                     device: {
                         type: DeviceInfo.getDeviceType(), 
@@ -225,6 +252,9 @@ export default {
                         } : {})
                     }, 
                 })
+
+                // 发起首次心跳
+                this.handleHeartbeat()
             })
 
             // 监听连接关闭
@@ -232,11 +262,28 @@ export default {
                 console.log('Connection closed')
                 this.conn = null
                 this.peerInfo = null
+                this.lastHeartbeat = -1
                 if(this.role == 'connector') {
                     message.error('连接已断开')
                     this.$router.push('/')
                 }
             })
+        },
+        handleHeartbeat() {
+            // 心跳
+            if(!this.conn) {
+                // 没有连接，不发送心跳
+                return
+            }
+            if(this.lastHeartbeat != -1 && Date.now() - this.lastHeartbeat > 15000) {
+                // 15秒未收到心跳，断开连接
+                message.error('咦，好像断开连接了')
+                if(this.conn) this.conn.close()
+            }
+            this.conn.send(JSON.stringify({
+                type: 'ping'
+            }))
+            setTimeout(this.handleHeartbeat, 5000)
         },
         handlePeerJSError(err) {
             console.log(err.type, err)
@@ -253,6 +300,9 @@ export default {
                 message.error(`PeerJSError: ${err.message}`)
             }
         }, 
+        disconnectPeer() {
+            this.conn.close()
+        },
         tryReconnect() {
             let retryCount = 0
             let retryInterval = setInterval(() => {
@@ -400,6 +450,30 @@ export default {
     align-items: center;
     color: rgba(0, 0, 0, 0.88);
     font-size: 16px;
+
+    .disconnect-container {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        position: absolute;
+        color: #FFFFFF;
+        font-size: 17px;
+        background: rgb(22 119 255 / 95%);
+        border-radius: 7px;
+        cursor: pointer;
+        opacity: 0;
+        transition: all 0.3s;
+        
+        .anticon {
+            margin-right: 5px;
+        }
+    }
+
+    .disconnect-container:hover {
+        opacity: 1;
+    }
 
     .icon {
         color: rgb(0, 153, 255);

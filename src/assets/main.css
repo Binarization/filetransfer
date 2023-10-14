@@ -2,6 +2,7 @@
 
 body {
     background-color: #f2f2f2;
+    user-select:none;
 }
 
 /* 替换默认滚动条样式 */
