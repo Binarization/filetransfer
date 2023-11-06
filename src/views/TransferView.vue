@@ -143,7 +143,17 @@ export default {
         },
         handlePeerJSError(err) {
             if(PeerJSError.getPeerJSErrorMsg(err)) {
-                message.error(PeerJSError.getPeerJSErrorMsg(err))
+                if(err.type === PeerJSError.PeerErrorType.BrowserIncompatible) {
+                    this.$router.replace({
+                        name: 'warning',
+                        params: {
+                            title: '不支持的浏览器',
+                            msg: PeerJSError.getPeerJSErrorMsg(err)
+                        }
+                    })
+                } else {
+                    message.error(PeerJSError.getPeerJSErrorMsg(err))
+                }
             } else {
                 message.error(`PeerJSError: ${err.message}`)
             }

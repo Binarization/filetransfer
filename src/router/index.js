@@ -26,9 +26,8 @@ const router = createRouter({
             component: () => import('../views/TransferView.vue')
         },
         {
-            path: '/warning',
+            path: '/warning/:title/:msg',
             name: 'warning',
-            props: true,
             component: () => import('../views/WarningView.vue')
         },
     ]

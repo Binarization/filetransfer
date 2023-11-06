@@ -3,7 +3,7 @@ import DeviceInfo from '@/utils/DeviceInfo'
 export const getPeerJSErrorMsg = (error) => {
 	switch(error.type) {
 		case PeerErrorType.BrowserIncompatible:
-			return `哎呀，当前浏览器暂不支持使用Direct Transfer，请${DeviceInfo.isMobile() ? '尝试更换使用<a href="https://google.cn/chrome/">Chrome浏览器</a>或微信访问' : '尝试更换使用<a href="https://google.cn/chrome/">Chrome浏览器</a>访问'}}`
+			return `哎呀，当前浏览器暂不支持使用Direct Transfer，请${DeviceInfo.isMobile() ? '尝试更换使用<a href="https://google.cn/chrome/">Chrome浏览器</a>或微信访问' : '尝试更换使用<a href="https://google.cn/chrome/">Chrome浏览器</a>访问'}`
 
 		case PeerErrorType.Disconnected:
 			return '连接断开了(っ °Д °;)っ'

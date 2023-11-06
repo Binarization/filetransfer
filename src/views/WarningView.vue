@@ -1,6 +1,9 @@
 <template>
     <a-result status="warning">
         <template #title>
+            <div v-html="$route.params.title"></div>
+        </template>
+        <template #subTitle>
             <div v-html="$route.params.msg"></div>
         </template>
         <template #extra>
