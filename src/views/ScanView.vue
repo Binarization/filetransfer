@@ -93,7 +93,11 @@ export default {
                     console.log(error)
                 }
                 if (url && (url.protocol === 'http:' || url.protocol === 'https:')) {
-                    message.info(`扫描结果：${result[i].rawValue}`)
+                    // message.info(`扫描结果：${result[i].rawValue}`)
+                    const match = result[i].rawValue.match(/\/transfer\/([0-9a-f-]{36})/)
+                    if (match) {
+                        this.$router.push(`/transfer/${match[1]}`)
+                    }
                     return
                 }
             }
