@@ -17,7 +17,7 @@ export class MainConnection {
         this.numOfSubconns = 8
         this.lastHeartbeat = -1
 
-        this.peer.on('error', this.handlePeerJSError)
+        this.peer.on('error', (err) => this.handlePeerJSError(err))
     }
 
     init(initiatorPeerId) {
