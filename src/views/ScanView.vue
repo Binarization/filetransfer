@@ -122,6 +122,7 @@ export default {
         },
     }, 
     unmounted() {
+        this.cameraReload = true
         if (this.stream) {
             this.stream.getTracks().forEach(track => track.stop())
         }
