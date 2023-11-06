@@ -37,6 +37,12 @@ export const getBrowserName = () => {
     return (browserNameDict[result.browser.name] || result.browser.name) + '浏览器'
 }
 
+export const isMobile = () => {
+    const parser = new UAParser()
+    const result = parser.getResult()
+    return result.device.type === 'mobile' || result.device.type === 'tablet'
+}
+
 const browserNameDict = {
     '360 Browser': '360',
     'Android Browser': '安卓',
@@ -88,4 +94,5 @@ export default {
     getDeviceType,
     getDeviceTypeName,
     getBrowserName,
+    isMobile,
 }
