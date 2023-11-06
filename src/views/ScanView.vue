@@ -12,7 +12,7 @@
         <a-spin :spinning="cameraLoading">
             <div class="camera-wrapper">
                 <div v-if="!cameraLoading" class="animation"></div>
-                <qrcode-stream :paused="cameraReload" :constraints="constraints" @camera-on="onCameraOn" @detect="onDetect"
+                <qrcode-stream v-if="!cameraReload" :paused="cameraReload" :constraints="constraints" @camera-on="onCameraOn" @detect="onDetect"
                     @error="onCameraError"></qrcode-stream>
             </div>
         </a-spin>
@@ -42,7 +42,7 @@ export default {
             devices: [],
             selectedDeviceId: null,
             cameraLoading: true,
-            cameraReload: false,
+            cameraReload: true,
         }
     },
     mounted() {
