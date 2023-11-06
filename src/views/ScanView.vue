@@ -120,7 +120,12 @@ export default {
                 message.error('开启摄像头失败，请确认是否已授权访问摄像头')
             }
         },
-    }
+    }, 
+    unmounted() {
+        if (this.stream) {
+            this.stream.getTracks().forEach(track => track.stop())
+        }
+    },
 }
 </script>
 
