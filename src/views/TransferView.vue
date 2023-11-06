@@ -5,9 +5,9 @@
                 <template #icon>
                     <DisconnectOutlined />
                 </template>
-                {{ role == 'initiator' ? '关闭会话' : '断开连接' }}
+                {{ mainConnection.role == Role.INITIATOR ? '关闭会话' : '断开连接' }}
             </a-button>
-            <div v-if="role == 'initiator'" class="container">
+            <div v-if="mainConnection.role == Role.INITIATOR" class="container">
                 <span class="container-title">加入链接</span>
                 <div class="qr-container">
                     <a-qrcode :value="getQRCodeLink" :status="isQRCodeLoading" />
@@ -25,20 +25,20 @@
             </div>
             <div class="container">
                 <span class="container-title">当前连接</span>
-                <div v-if="peerInfo === null" class="placeholder">暂无连接</div>
+                <div v-if="mainConnection.peerInfo === null" class="placeholder">暂无连接</div>
                 <div v-else class="peer-info-container">
-                    <div v-if="role == 'initiator'" class="disconnect-container" @click="disconnectPeer()">
+                    <div v-if="mainConnection.role == Role.INITIATOR" class="disconnect-container" @click="mainConnection.close()">
                         <DisconnectOutlined />
                         断开当前连接
                     </div>
                     <div class="icon">
-                        <IconFont v-if="peerInfo.type == 'pc'" type="icon-pc" />
-                        <IconFont v-else-if="peerInfo.type == 'mobile'" type="icon-phone" />
-                        <IconFont v-else-if="peerInfo.type == 'tablet'" type="icon-tablet" />
+                        <IconFont v-if="mainConnection.peerInfo.type == 'pc'" type="icon-pc" />
+                        <IconFont v-else-if="mainConnection.peerInfo.type == 'mobile'" type="icon-phone" />
+                        <IconFont v-else-if="mainConnection.peerInfo.type == 'tablet'" type="icon-tablet" />
                         <IconFont v-else type="icon-unknown_device" />
                     </div>
                     <div class="name">
-                        {{ peerInfo.name[0] }}的&zwnj;{{ peerInfo.name[1] }}
+                        {{ mainConnection.peerInfo.name[0] }}的&zwnj;{{ mainConnection.peerInfo.name[1] }}
                     </div>
                 </div>
             </div>
@@ -46,13 +46,13 @@
         <div class="content-container">
             <div class="container">
                 <span class="container-title">发送文件</span>
-                <div v-if="peerInfo === null" class="placeholder">等待加入会话</div>
+                <div v-if="mainConnection.peerInfo === null" class="placeholder">等待加入会话</div>
                 <a-upload-dragger v-else name="file" list-type="picture-card" :multiple="true" :disabled="!allowUpload"
                     :customRequest="handleUpload" @change="handleChange" @preview="handlePreview">
                     <p v-if="allowUpload" class="ant-upload-drag-icon">
                         <inbox-outlined></inbox-outlined>
                     </p>
-                    <p class="ant-upload-text">{{ allowUpload ? "点击或拖拽文件到此区域上传" : "由于校方管控，不支持发送文件" }}</p>
+                    <p class="ant-upload-text">{{ allowUpload ? "点击或拖拽文件到此区域发送" : "由于校方管控，不支持发送文件" }}</p>
                     <p class="ant-upload-hint">
 
                     </p>
@@ -74,11 +74,11 @@
 </template>
 
 <script>
-import { Peer } from 'peerjs'
 import { CopyOutlined, DisconnectOutlined, InboxOutlined } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
-import { allowUpload, allowReceive, isPad, getStuClass, getStuName, getStuId } from '@/utils/07future'
-import DeviceInfo from '@/utils/DeviceInfo'
+import { allowUpload, allowReceive, isPad } from '@/utils/07future'
+import { MainConnection } from '@/utils/peer/MainConnection'
+import { Role } from '@/utils/peer/Enums'
 import PeerJSError from '@/utils/PeerJSError'
 
 export default {
@@ -89,14 +89,10 @@ export default {
     },
     data() {
         return {
-            peer: new Peer({ debug: 2 }),
-            peerId: '',
-            role: 'initiator',
-            conn: null,
-            peerInfo: null,
+            mainConnection: new MainConnection(),
             previewVisible: false,
             previewSrc: '',
-            lastHeartbeat: -1,
+            Role: Role,
         }
     },
     computed: {
@@ -108,54 +104,28 @@ export default {
         },
         genLink() {
             // 生成会话链接
-            return `${window.location.origin}/#/transfer/${this.peerId}`
+            return `${window.location.origin}/#/transfer/${this.mainConnection.peerId}`
         },
         getQRCodeLink() {
             // 生成二维码链接
             return this.genLink
         },
         isQRCodeLoading() {
-            return this.peerId === '' ? 'loading' : 'active'
+            return this.mainConnection.peerId === '' ? 'loading' : 'active'
         },
     },
     mounted() {
         // 关闭先前未关闭会话
-        if(this.conn) {
-            this.conn.close()
+        if(this.mainConnection.conn) {
+            this.mainConnection.close()
         }
-        // PeerJS异常处理
-        this.peer.on('error', this.handlePeerJSError)
-        // 判断路由是否传入id
-        if (this.$route.params.id) {
-            this.role = 'connector'
-
-            // 加入现有会话
-            this.peer.on('open', (id) => {
-                this.peerId = id
-                this.handleConnection(this.peer.connect(this.$route.params.id, { reliable: true }))
-            });
-        } else {
-            this.role = 'initiator'
-
-            // 创建新的会话
-            this.peer.on('open', (id) => {
-                this.peerId = id
-            });
-
-            // 监听连接
-            this.peer.on('connection', (conn) => {
-                this.handleConnection(conn)
-            })
-
-            // 监听连接关闭
-            this.peer.on('disconnected', () => {
-                console.log('peer disconnected')
-            })
-        }
+        this.mainConnection.setGoHomeHandler(this.handleGoHome)
+        this.mainConnection.init(this.$route.params.id)
+        this.mainConnection.addPeerJSErrorListenner(this.handlePeerJSError)
     },
     unmounted() {
-        if(this.peer) {
-            this.peer.destroy()
+        if(this.mainConnection) {
+            this.mainConnection.destroy()
         }
     },
     methods: {
@@ -165,161 +135,18 @@ export default {
         },
         goHome() {
             // 关闭会话
-            if (this.role == 'initiator') {
-                this.peer.destroy()
-            } else if(this.role == 'connector') {
-                this.conn.close()
-            }
+            this.mainConnection.destroy()
             this.$router.push('/')
         },
-        send(type, detail) {
-            // 发送数据
-            this.conn.send(JSON.stringify({
-                type,
-                detail,
-            }))
-        }, 
-        handleConnection(conn) {
-            if (this.conn) {
-                // 如果已经有连接，拒绝新连接
-                conn.on('open', () => {
-                    conn.send(JSON.stringify({
-                        type: 'refuse'
-                    }))
-                    setTimeout(() => {
-                        conn.close()
-                    }, 3000)
-                })
-                return
-            }
-            this.conn = conn
-            // 处理连接
-            this.conn.on('open', () => {
-                // Receive messages
-                this.conn.on('data', (data) => {
-                    console.log('Received', data)
-                    try {
-                        let json = JSON.parse(data)
-                        console.log(json)
-                        switch(json.type) {
-                            // 握手
-                            case 'handshake':
-                                this.peerInfo = json.detail.device
-                                break
-                            
-                            // 心跳
-                            case 'ping':
-                                this.lastHeartbeat = Date.now()
-                                this.conn.send(JSON.stringify({
-                                    type: 'pong'
-                                }))
-                                break
-                            
-                            case 'pong':
-                                this.lastHeartbeat = Date.now()
-                                break
-                            
-                            // 拒绝连接
-                            case 'refuse':
-                                message.error('会话已有连接，无法加入')
-                                this.role = 'rejectee'
-                                this.conn.close()
-                                this.$router.push('/')
-                                break
-                            
-                            default:
-                                message.error('接收到不支持的数据')
-                                console.log('Received', json)
-                        }
-                    } catch(err) {
-                        console.log(err)
-                        this.conn.close()
-                    }
-                })
-
-                // 发起握手
-                this.send('handshake',{
-                    device: {
-                        type: DeviceInfo.getDeviceType(), 
-                        name: DeviceInfo.getDeviceName(),
-                        // 如果isPad为true，还要加一个07future字段
-                        ...(isPad() ? {
-                            '07future': {
-                                stuId: getStuId(),
-                                stuName: getStuName(),
-                                stuClass: getStuClass(),
-                            }
-                        } : {})
-                    }, 
-                })
-
-                // 发起首次心跳
-                this.handleHeartbeat()
-            })
-
-            // 监听连接关闭
-            this.conn.on('close', () => {
-                console.log('Connection closed')
-                this.conn = null
-                this.peerInfo = null
-                this.lastHeartbeat = -1
-                if(this.role == 'connector') {
-                    message.error('连接已断开')
-                    this.$router.push('/')
-                }
-            })
-        },
-        handleHeartbeat() {
-            // 心跳
-            if(!this.conn) {
-                // 没有连接，不发送心跳
-                return
-            }
-            if(this.lastHeartbeat != -1 && Date.now() - this.lastHeartbeat > 15000) {
-                // 15秒未收到心跳，断开连接
-                message.error('咦，好像断开连接了')
-                if(this.conn) this.conn.close()
-            }
-            this.conn.send(JSON.stringify({
-                type: 'ping'
-            }))
-            setTimeout(this.handleHeartbeat, 5000)
+        handleGoHome() {
+            this.$router.push('/')
         },
         handlePeerJSError(err) {
-            console.log(err.type, err)
-
-            switch(err.type) {
-                case PeerJSError.PeerErrorType.Network:
-                    this.tryReconnect()
-                    break
-            }
-
             if(PeerJSError.getPeerJSErrorMsg(err)) {
                 message.error(PeerJSError.getPeerJSErrorMsg(err))
             } else {
                 message.error(`PeerJSError: ${err.message}`)
             }
-        }, 
-        disconnectPeer() {
-            this.conn.close()
-        },
-        tryReconnect() {
-            let retryCount = 0
-            let retryInterval = setInterval(() => {
-                if(!this.peer.disconnected) {
-                    console.log('reconnected')
-                    clearInterval(retryInterval)
-                    return
-                }
-                if(retryCount >= 5) {
-                    console.log('reconnect failed')
-                    clearInterval(retryInterval)
-                    return
-                }
-                retryCount++
-                console.log('reconnecting...')
-                this.peer.reconnect()
-            }, 2000)
         },
         handlePreview(file) {
             console.log(file)
@@ -344,7 +171,8 @@ export default {
                 message.error(`${info.file.name}发送失败`);
             }
         },
-        handleUpload({ file, onSuccess, onError, onProgress }) {
+        // handleUpload({ file, onSuccess, onError, onProgress }) {
+        handleUpload({ file, onSuccess, onProgress }) {
             console.log(file)
             let progress = 0;
             setInterval(() => {
