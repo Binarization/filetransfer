@@ -28,15 +28,16 @@
 </template>
   
 <script>
-import logo from '@/assets/logo.png';
-import StudioLogo from '@/components/StudioLogo.vue';
+import logo from '@/assets/logo.png'
+import StudioLogo from '@/components/StudioLogo.vue'
 
 export default {
     name: "HomePage",
     data() {
         return {
             logo: logo,
-        };
+            windowHeight: 0,
+        }
     },
     components: {
         StudioLogo,
@@ -44,12 +45,21 @@ export default {
     computed: {
         getFooterStyle() {
             return {
-                top: `${window.innerHeight - 17 * 2 - 3}px`, 
+                top: `${this.windowHeight - 17 * 2 - 3}px`, 
                 height: '34px', 
             }
         },
     },
-};
+    mounted() {
+        this.updateWindowHeight()
+        window.addEventListener('resize', this.updateWindowHeight)
+    },
+    methods: {
+        updateWindowHeight() {
+            this.windowHeight = window.innerHeight
+        },
+    }
+}
 </script>
   
 <style scoped>
