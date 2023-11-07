@@ -11,9 +11,9 @@ export class FileTransfer {
         mainConnSend = null,
         numOfSubConn = numOfSubConn, 
         fileList = null,
-        updateFileList = null,
+        updateFileListRecv = null,
     } = {}){
-        this.chunkSize = 10 * 1024 * 1024 // 10MB
+        this.chunkSize = 20 * 1024 * 1024 // 20MB
         this.role = role
         this.peer = peer
         this.mainConn = mainConn
@@ -22,7 +22,7 @@ export class FileTransfer {
         this.idleSubConns = []
         this.numOfSubConn = numOfSubConn
         this.fileList = fileList
-        this.updateFileList = updateFileList
+        this.updateFileListRecv = updateFileListRecv
 
         this.preSendFileList = {}
         this.sendingFileList = []
@@ -151,11 +151,12 @@ export class FileTransfer {
         reader.readAsArrayBuffer(chunk.blob)
         reader.onload = () => {
             // console.log('onload: ', reader.result)
-            conn.send({
+            let data = {
                 uid: file.file.uid,
                 index: chunk.index,
                 arrayBuffer: reader.result,
-            })
+            }
+            conn.send(data)
             file.sended += chunk.blob.size
             file.file.percent = parseInt(file.sended / file.file.size * 100)
             file.onProgress(file.file)
@@ -165,6 +166,7 @@ export class FileTransfer {
             }
             this.idleSubConns.push(conn)
             this.checkQueue()
+            data = null
             reader = null
         }
         reader.onerror = (err) => {
@@ -176,7 +178,6 @@ export class FileTransfer {
 
     async handleChunk(uid, index, arrayBuffer) {
         console.log('handleChunk: ', uid, index, arrayBuffer, this.receivingFileList[uid])
-        let file = this.receivingFileList[uid].file
         let chunks = this.receivingFileList[uid].chunks
         let received = this.receivingFileList[uid].received
         let size = this.receivingFileList[uid].size
@@ -187,11 +188,19 @@ export class FileTransfer {
         // 更新进度
         received += chunks[index].size
         this.receivingFileList[uid].received = received
-        file.percent = parseInt(received / size * 100)
+        this.updateFileListRecv({
+            uid, 
+            percent: parseInt(received / size * 100),
+        })
         
         // 检查当前文件是否传输完毕
         if(received === this.receivingFileList[uid].size) {
-            this.updateFileList(uid, this.chunksToFile(uid))
+            this.updateFileListRecv({
+                uid, 
+                status: 'done',
+                percent: 100,
+                file: this.chunksToFile(uid)
+            })
             delete this.receivingFileList[uid]
             console.log('receive done: ', this.fileList.receive)
         }

@@ -7,7 +7,7 @@ import DeviceInfo from '@/utils/DeviceInfo'
 import PeerJSError from '@/utils/PeerJSError'
 
 export class MainConnection {
-    constructor(fileList, updateFileList) {
+    constructor(fileList, updateFileListRecv) {
         this.role = Role.INITIATOR
         this.peer = new Peer({ debug: 2 })
         this.peerId = ''
@@ -16,7 +16,7 @@ export class MainConnection {
         this.fileTransfer = null
         this.fileList = fileList
         this.lastHeartbeat = -1
-        this.updateFileList = updateFileList
+        this.updateFileListRecv = updateFileListRecv
 
         this.peer.on('error', this.handlePeerJSError.bind(this))
     }
@@ -163,7 +163,7 @@ export class MainConnection {
                     mainConnSend: this.send.bind(this),
                     numOfSubConn: data.detail.fileTransfer.numOfSubConn,
                     fileList: this.fileList,
-                    updateFileList: this.updateFileList,
+                    updateFileListRecv: this.updateFileListRecv,
                 })
                 break
             

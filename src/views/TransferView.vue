@@ -126,7 +126,7 @@ export default {
         },
     },
     created() {
-        this.mainConnection = new MainConnection(this.fileList, this.updateFileRecvFinish)
+        this.mainConnection = new MainConnection(this.fileList, this.updateFileListRecv)
     },
     mounted() {
         // 关闭先前未关闭会话
@@ -155,14 +155,14 @@ export default {
         handleGoHome() {
             this.$router.push('/')
         },
-        updateFileRecvFinish(uid, file) {
+        updateFileListRecv({uid, status, percent, file} = {}) {
             this.$nextTick(() => {
                 // 更新fileList.receive里的对应文件status和percent
                 const item = this.fileList.receive.find(file => file.uid === uid)
                 if(item) {
-                    item.status = 'done'
-                    item.percent = 100
-                    item.originFileObj = file
+                    if(status) item.status = status
+                    if(percent) item.percent = percent
+                    if(file) item.originFileObj = file
                 }
             })
         },
