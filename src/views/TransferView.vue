@@ -188,6 +188,16 @@ export default {
                             }
                         })
                         break
+                    
+                    case PeerJSError.PeerErrorType.Network:
+                        this.$router.replace({
+                            name: 'warning',
+                            params: {
+                                title: '网络连接失败',
+                                msg: PeerJSError.getPeerJSErrorMsg(err)
+                            }
+                        })
+                        break
 
                     default:
                         message.error(PeerJSError.getPeerJSErrorMsg(err))
