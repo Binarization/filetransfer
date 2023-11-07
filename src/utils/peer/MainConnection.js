@@ -254,6 +254,8 @@ export class MainConnection {
                     console.log('tryReconnect: reconnect failed')
                     clearInterval(retryInterval)
                     reject()
+                    message.error('重连失败')
+                    this.goHome()
                     return
                 }
                 retryCount++
