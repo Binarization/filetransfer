@@ -13,7 +13,6 @@ export class FileTransfer {
         fileList = null,
         updateFileListRecv = null,
     } = {}){
-        console.log('FileTransfer: ', new Date().getTime())
         this.chunkSize = 20 * 1024 * 1024 // 20MB
         this.role = role
         this.peer = peer
@@ -40,6 +39,7 @@ export class FileTransfer {
 
     appendSubConn(conn) {
         console.log('subconn added: ', conn)
+        conn.fileReaderWorker = new Worker(new URL('@/workers/FileReader.worker.js', import.meta.url))
         this.subConns.push(conn)
         this.idleSubConns.push(conn)
     }
@@ -48,9 +48,14 @@ export class FileTransfer {
         return this.subConns.length === this.numOfSubConns
     }
 
+    isTransferring() {
+        return this.sendingFileList.length > 0 || Object.keys(this.receivingFileList).length > 0
+    }
+
     close() {
         this.subConns.forEach(conn => {
             conn.close()
+            conn.fileReaderWorker.terminate()
         })
     }
 
@@ -152,53 +157,57 @@ export class FileTransfer {
     }
 
     async sendChunk(conn, file, chunk) {
-        console.log('sendChunk: ', conn, file)
-        // 使用FileReader读取文件
-        let reader = new FileReader()
-        reader.readAsArrayBuffer(chunk.blob)
-        reader.onload = () => {
-            // console.log('onload: ', reader.result)
-            let data = {
-                uid: file.file.uid,
-                index: chunk.index,
-                arrayBuffer: reader.result,
-            }
-            conn.send(data)
-            file.sended += chunk.blob.size
-            file.file.percent = parseInt(file.sended / file.file.size * 100)
-            file.onProgress(file.file)
-            if(file.sended === file.file.size) {
-                file.file.status = 'done'
-                file.onSuccess(file.file)
-            }
-            this.idleSubConns.push(conn)
-            this.checkQueue()
-            data = null
-            reader = null
+        conn.fileReaderWorker.onmessage = (e) => {
+            switch(typeof(e.data)) {
+                case 'object':
+                    conn.send({
+                        uid: file.file.uid,
+                        index: chunk.index,
+                        arrayBuffer: e.data,
+                    })
+                    file.sended += chunk.blob.size
+                    file.file.percent = parseInt(file.sended / file.file.size * 100)
+                    file.onProgress(file.file)
+                    if(file.sended === file.file.size) {
+                        file.file.status = 'done'
+                        file.onSuccess(file.file)
+                    }
+                    this.idleSubConns.push(conn)
+                    this.checkQueue()
+                    break
+                
+                case 'string':
+                    console.error(e.data)
+                    file.file.status = 'error'
+                    file.onError(file.file)
+                    break
+                
+                default:
+                    console.error('worker: unknown message: ', e.data)
+                    break
+                }
         }
-        reader.onerror = (err) => {
-            console.error('read error: ', err)
-            file.file.status = 'error'
-            file.onError(file.file)
-        }
+        conn.fileReaderWorker.postMessage(chunk.blob)
+        this.checkQueue()
     }
 
     async handleChunk(uid, index, arrayBuffer) {
-        console.log('handleChunk: ', uid, index, arrayBuffer, this.receivingFileList[uid])
+        // console.log('handleChunk: ', uid, index, arrayBuffer, this.receivingFileList[uid])
         let chunks = this.receivingFileList[uid].chunks
         let received = this.receivingFileList[uid].received
         let size = this.receivingFileList[uid].size
-        chunks[index] = new Blob([arrayBuffer])
+        chunks[index] = arrayBuffer
 
-        
-        console.log(this.fileList.receive[0])
+        // console.log('receive blob: ', chunks[index])
         // 更新进度
-        received += chunks[index].size
+        received += chunks[index].byteLength
         this.receivingFileList[uid].received = received
         this.updateFileListRecv({
             uid, 
             percent: parseInt(received / size * 100),
         })
+
+        chunks[index] = new Uint8Array()
         
         // 检查当前文件是否传输完毕
         if(received === this.receivingFileList[uid].size) {
@@ -209,15 +218,25 @@ export class FileTransfer {
                 file: await this.chunksToFile(uid)
             })
             delete this.receivingFileList[uid]
-            console.log('receive done: ', this.fileList.receive)
+            // console.log('receive done: ', this.fileList.receive)
         }
     }
 
     async chunksToFile(uid) {
         let chunks = this.receivingFileList[uid].chunks
         let type = this.receivingFileList[uid].type
-        let blob = new Blob(chunks)
-        let file = new File([blob], uid, { type })
+        // 合并ArrayBuffer
+        let arrayBuffer = new ArrayBuffer(this.receivingFileList[uid].size)
+        let received = 0
+        for(let i = 0; i < chunks.length; i++) {
+            let chunk = chunks[i]
+            new Uint8Array(arrayBuffer).set(new Uint8Array(chunk), received)
+            received += chunk.byteLength
+        }
+        // 生成Blob
+        let blob = new Blob([arrayBuffer], { type })
+        // 生成File
+        let file = new File([blob], this.receivingFileList[uid].file.name, { type })
         file.uid = uid
         return file
     }

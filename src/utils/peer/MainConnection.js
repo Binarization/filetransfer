@@ -230,6 +230,12 @@ export class MainConnection {
             // 没有连接，不发送心跳
             return
         }
+        // 文件上传过程中不发送心跳
+        if (this.fileTransfer && this.fileTransfer.isTransferring()) {
+            this.lastHeartbeat == -1
+            setTimeout(this.heartbeat.bind(this), 15000)
+            return
+        }
         if (this.lastHeartbeat != -1 && Date.now() - this.lastHeartbeat > 15000) {
             // 15秒未收到心跳，断开连接
             message.error('咦，好像断开连接了')
