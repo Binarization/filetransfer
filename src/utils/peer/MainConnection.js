@@ -3,10 +3,10 @@ import { ExclamationCircleOutlined } from '@ant-design/icons-vue'
 import { createVNode } from 'vue';
 import { Peer } from 'peerjs'
 import { isPad, getStuClass, getStuName, getStuId } from '@/utils/07future'
-import { FileTransfer, numOfWorkers } from './FileTransfer'
+import { FileTransfer, numOfSubConns } from './FileTransfer'
 import { Role } from './Enums'
 import DeviceInfo from '@/utils/DeviceInfo'
-import PeerJSError from '@/utils/PeerJSError'
+import PeerJSError from './PeerJSError'
 
 export class MainConnection {
     constructor(fileList, updateFileListRecv) {
@@ -32,16 +32,6 @@ export class MainConnection {
             this.peer.on('open', (id) => {
                 this.peerId = id
             })
-
-            // 监听连接
-            this.peer.on('connection', (conn) => {
-                this.handleConnection(conn)
-            })
-
-            // 监听连接关闭
-            this.peer.on('disconnected', () => {
-                // console.log('peer disconnected')
-            })
         } else {
             // 接入端
             this.role = Role.CONNECTOR
@@ -52,6 +42,16 @@ export class MainConnection {
                 this.handleConnection(this.peer.connect(initiatorPeerId, { reliable: true }))
             })
         }
+
+        // 监听连接
+        this.peer.on('connection', (conn) => {
+            this.handleConnection(conn)
+        })
+
+        // 监听连接关闭
+        this.peer.on('disconnected', () => {
+            // console.log('peer disconnected')
+        })
     }
 
     handshake() {
@@ -71,7 +71,7 @@ export class MainConnection {
                     : {})
             },
             fileTransfer: {
-                numOfWorkers: numOfWorkers
+                numOfSubConns: numOfSubConns
             }
         })
     }
@@ -116,15 +116,21 @@ export class MainConnection {
 
     handleConnection(conn) {
         if (this.conn) {
-            // 当前已有连接，拒绝连接
-            conn.on('open', () => {
-                conn.send({
-                    type: 'refuse'
+            // 判断是否为当前连接的子连接
+            if(this.conn.peer == conn.peer) {
+                // 如果是，添加到子连接列表
+                this.fileTransfer.handleConnection(conn)
+            } else {
+                // 如果不是，拒绝连接
+                conn.on('open', () => {
+                    conn.send({
+                        type: 'refuse'
+                    })
+                    setTimeout(() => {
+                        conn.close()
+                    }, 3000)
                 })
-                setTimeout(() => {
-                    conn.close()
-                }, 3000)
-            })
+            }
         } else {
             // 如果没有连接，直接接受连接
             this.conn = conn
@@ -157,7 +163,7 @@ export class MainConnection {
     }
 
     handleData(data) {
-        // console.log('Received', data)
+        console.log('Received', data)
         const { type, detail } = data
         switch (type) {
             // 握手
@@ -170,7 +176,7 @@ export class MainConnection {
                     peer: this.peer,
                     mainConn: this.conn,
                     mainConnSend: this.send.bind(this),
-                    numOfWorkers: detail.fileTransfer.numOfWorkers,
+                    numOfSubConns: detail.fileTransfer.numOfSubConns,
                     fileList: this.fileList,
                     updateFileListRecv: this.updateFileListRecv
                 })

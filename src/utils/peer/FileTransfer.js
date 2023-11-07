@@ -1,7 +1,7 @@
 import { message } from "ant-design-vue"
 import { Role } from "./Enums"
 
-export const numOfWorkers = 8
+export const numOfSubConns = 8
 
 export class FileTransfer {
     constructor({
@@ -9,20 +9,19 @@ export class FileTransfer {
         peer = null, 
         mainConn = null, 
         mainConnSend = null,
-        numOfWorkers = numOfWorkers, 
+        numOfSubConns = numOfSubConns, 
         fileList = null,
         updateFileListRecv = null,
     } = {}){
+        console.log('FileTransfer: ', new Date().getTime())
         this.chunkSize = 20 * 1024 * 1024 // 20MB
         this.role = role
         this.peer = peer
         this.mainConn = mainConn
         this.mainConnSend = mainConnSend
-        this.workers = []
-        this.idleWorkers = []
-        this.numOfWorkers = numOfWorkers
-        this.unpairedWorker = null
-        this.targetUnpairedWorkerPeerId = null
+        this.subConns = []
+        this.idleSubConns = []
+        this.numOfSubConns = numOfSubConns
         this.fileList = fileList
         this.updateFileListRecv = updateFileListRecv
 
@@ -31,75 +30,22 @@ export class FileTransfer {
         this.receivingFileList = {}
 
         if(this.role === Role.INITIATOR) {
-            this.createWorker()
+            this.createSubConn()
         }
     }
 
-    // 创建worker
-    createWorker(){
-        const worker = new Worker(new URL('@/utils/peer/SubConnection', import.meta.url), {
-            type: 'module',
-        })
-        worker.onmessage = this.handleWorker.bind(this)
-        worker.postMessage({
-            type: 'init',
-            detail: null,
-        })
+    createSubConn() {
+        this.handleConnection(this.peer.connect(this.mainConn.peer, { reliable: true }))
     }
 
-    // 连接worker(接入端接收到发起端WorkerPeerId，开始创建worker并连接发起)
-    connectWorker(peerId) {
-        this.targetUnpairedWorkerPeerId = peerId
-        this.createWorker()
+    appendSubConn(conn) {
+        console.log('subconn added: ', conn)
+        this.subConns.push(conn)
+        this.idleSubConns.push(conn)
     }
 
-    // 成功建立连接，添加worker
-    appendWorker(conn) {
-        console.log('worker added: ', conn)
-        this.workers.push(conn)
-        this.idleWorkers.push(conn)
-    }
-
-    // 处理worker消息
-    handleWorker(e) {
-        console.log('handleWorker: ', e.data)
-        const { type, detail } = e.data
-        switch(type) {
-            case 'initFinish':
-                this.unpairedWorker = e.target
-                if(this.role === Role.INITIATOR) {
-                    // 发起端通知接入端创建worker
-                    this.mainConnSend('workerInitFinish', {
-                        peerId: detail.peerId,
-                    })
-                } else {
-                    // 接入端worker连接发起端worker
-                    this.unpairedWorker.postMessage({
-                        type: 'connect',
-                        detail: {
-                            peerId: this.targetUnpairedWorkerPeerId,
-                        }
-                    })
-                }
-                break
-            
-            case 'connectFinish':
-                console.log('handleWorker: worker connectFinish: ', e.target)
-                // worker双向连接成功
-                this.appendWorker(e.target)
-                // 发起端检查是否已完成worker连接
-                if(this.role === Role.INITIATOR && !this.isWorkersReady()) {
-                    this.createWorker()
-                }
-                break
-
-            default:
-                console.error('handleWorker: ', '未知的消息类型: ', type)
-        }
-    }
-
-    isWorkersReady() {
-        return this.workers.length === this.numOfWorkers
+    isSubConnsReady() {
+        return this.subConns.length === this.numOfSubConns
     }
 
     close() {
@@ -108,9 +54,9 @@ export class FileTransfer {
 
     handleConnection(conn) {
         conn.on('open', () => {
-            this.appendWorker(conn)
-            if(this.role === Role.CONNECTOR && !this.isWorkersReady()) {
-                this.createWorker()
+            this.appendSubConn(conn)
+            if(this.role === Role.INITIATOR && !this.isSubConnsReady()) {
+                this.createSubConn()
             }
             conn.on('data', this.handleData.bind(this))
         })
@@ -188,9 +134,9 @@ export class FileTransfer {
     }
 
     async checkQueue() {
-        console.log('checkQueue: ', this.idleWorkers.length, this.sendingFileList.length)
-        while(this.idleWorkers.length > 0 && this.sendingFileList.length > 0) {
-            let conn = this.idleWorkers.shift()
+        console.log('checkQueue: ', this.idleSubConns.length, this.sendingFileList.length)
+        while(this.idleSubConns.length > 0 && this.sendingFileList.length > 0) {
+            let conn = this.idleSubConns.shift()
             let file = this.sendingFileList[0]
             let chunk = file.chucks.shift()
 
@@ -223,7 +169,7 @@ export class FileTransfer {
                 file.file.status = 'done'
                 file.onSuccess(file.file)
             }
-            this.idleWorkers.push(conn)
+            this.idleSubConns.push(conn)
             this.checkQueue()
             data = null
             reader = null

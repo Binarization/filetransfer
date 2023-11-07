@@ -86,7 +86,7 @@ import { message } from 'ant-design-vue'
 import { allowUpload, allowReceive, isPad } from '@/utils/07future'
 import { MainConnection } from '@/utils/peer/MainConnection'
 import { Role } from '@/utils/peer/Enums'
-import PeerJSError from '@/utils/PeerJSError'
+import PeerJSError from '@/utils/peer/PeerJSError'
 
 export default {
     components: {
