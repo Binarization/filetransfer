@@ -117,7 +117,7 @@ export class MainConnection {
     handleConnection(conn) {
         if (this.conn) {
             // 判断是否为当前连接的子连接
-            if(this.conn.peer == conn.peer) {
+            if (this.conn.peer == conn.peer) {
                 // 如果是，添加到子连接列表
                 this.fileTransfer.handleConnection(conn)
             } else {
@@ -196,7 +196,7 @@ export class MainConnection {
             case 'pong':
                 this.lastHeartbeat = Date.now()
                 break
-            
+
             // Worker连接
             case 'workerInitFinish':
                 this.fileTransfer.connectWorker(detail.peerId)
@@ -239,24 +239,28 @@ export class MainConnection {
         this.send('ping')
         setTimeout(this.heartbeat.bind(this), 5000)
     }
-
+    
     tryReconnect() {
-        let retryCount = 0
-        let retryInterval = setInterval(() => {
-            if (!this.peer.disconnected) {
-                console.log('tryReconnect: reconnected')
-                clearInterval(retryInterval)
-                return
-            }
-            if (retryCount >= 5) {
-                console.log('tryReconnect: reconnect failed')
-                clearInterval(retryInterval)
-                return
-            }
-            retryCount++
-            console.log('tryReconnect: reconnecting...')
-            this.peer.reconnect()
-        }, 2000)
+        return new Promise((resolve, reject) => {
+            let retryCount = 0
+            let retryInterval = setInterval(() => {
+                if (!this.peer.disconnected) {
+                    console.log('tryReconnect: reconnected')
+                    clearInterval(retryInterval)
+                    resolve()
+                    return
+                }
+                if (retryCount >= 5) {
+                    console.log('tryReconnect: reconnect failed')
+                    clearInterval(retryInterval)
+                    reject()
+                    return
+                }
+                retryCount++
+                console.log('tryReconnect: reconnecting...')
+                this.peer.reconnect()
+            }, 2000)
+        })
     }
 
     handlePeerJSError(err) {
@@ -270,9 +274,7 @@ export class MainConnection {
                     content: '是否尝试重新连接？',
                     okText: '重新连接',
                     cancelText: '退出',
-                    onOk: () => {
-                        this.tryReconnect()
-                    },
+                    onOk: this.tryReconnect.bind(this),
                     onCancel: () => {
                         this.goHome()
                     },
