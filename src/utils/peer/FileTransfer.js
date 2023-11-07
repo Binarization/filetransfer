@@ -49,7 +49,9 @@ export class FileTransfer {
     }
 
     close() {
-        // TODO
+        this.subConns.forEach(conn => {
+            conn.close()
+        })
     }
 
     handleConnection(conn) {

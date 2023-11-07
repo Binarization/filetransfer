@@ -233,7 +233,7 @@ export class MainConnection {
         if (this.lastHeartbeat != -1 && Date.now() - this.lastHeartbeat > 15000) {
             // 15秒未收到心跳，断开连接
             message.error('咦，好像断开连接了')
-            if (this.conn) this.conn.close()
+            this.close()
             return
         }
         this.send('ping')
