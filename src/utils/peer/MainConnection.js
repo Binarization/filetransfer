@@ -1,7 +1,9 @@
-import { message } from 'ant-design-vue'
+import { message, Modal } from 'ant-design-vue'
+import { ExclamationCircleOutlined } from '@ant-design/icons-vue'
+import { createVNode } from 'vue';
 import { Peer } from 'peerjs'
 import { isPad, getStuClass, getStuName, getStuId } from '@/utils/07future'
-import { FileTransfer, numOfSubConn } from './FileTransfer'
+import { FileTransfer, numOfWorkers } from './FileTransfer'
 import { Role } from './Enums'
 import DeviceInfo from '@/utils/DeviceInfo'
 import PeerJSError from '@/utils/PeerJSError'
@@ -22,7 +24,7 @@ export class MainConnection {
     }
 
     init(initiatorPeerId) {
-        if(!initiatorPeerId) {
+        if (!initiatorPeerId) {
             // 发起端
             this.role = Role.INITIATOR
 
@@ -52,11 +54,33 @@ export class MainConnection {
         }
     }
 
+    handshake() {
+        this.send('handshake', {
+            device: {
+                type: DeviceInfo.getDeviceType(),
+                name: DeviceInfo.getDeviceName(),
+                // 如果isPad为true，还要加一个07future字段
+                ...(isPad()
+                    ? {
+                        '07future': {
+                            stuId: getStuId(),
+                            stuName: getStuName(),
+                            stuClass: getStuClass()
+                        }
+                    }
+                    : {})
+            },
+            fileTransfer: {
+                numOfWorkers: numOfWorkers
+            }
+        })
+    }
+
     send(type, detail) {
         // 发送数据
         this.conn.send({
             type,
-            detail,
+            detail
         })
     }
 
@@ -65,14 +89,18 @@ export class MainConnection {
     }
 
     close() {
-        if(this.conn) {
+        if (this.conn) {
             this.conn.close()
             this.conn = null
+        }
+        if (this.fileTransfer) {
+            this.fileTransfer.close()
+            this.fileTransfer = null
         }
     }
 
     destroy() {
-        if(this.role == Role.CONNECTOR) {
+        if (this.role == Role.CONNECTOR) {
             this.close()
         }
         this.peer.destroy()
@@ -88,47 +116,27 @@ export class MainConnection {
 
     handleConnection(conn) {
         if (this.conn) {
-            // 判断是否为当前连接的子连接
-            if(this.conn.peer == conn.peer) {
-                // 如果是，添加到子连接列表
-                this.fileTransfer.handleConnection(conn)
-            } else {
-                // 如果不是，拒绝连接
-                conn.on('open', () => {
-                    conn.send({
-                        type: 'refuse'
-                    })
-                    setTimeout(() => {
-                        conn.close()
-                    }, 3000)
+            // 当前已有连接，拒绝连接
+            conn.on('open', () => {
+                conn.send({
+                    type: 'refuse'
                 })
-            }
+                setTimeout(() => {
+                    conn.close()
+                }, 3000)
+            })
         } else {
             // 如果没有连接，直接接受连接
             this.conn = conn
-            
+
             this.conn.on('open', () => {
                 // 监听数据事件
                 this.conn.on('data', this.handleData.bind(this))
 
                 // 发起握手
-                this.send('handshake',{
-                    device: {
-                        type: DeviceInfo.getDeviceType(), 
-                        name: DeviceInfo.getDeviceName(),
-                        // 如果isPad为true，还要加一个07future字段
-                        ...(isPad() ? {
-                            '07future': {
-                                stuId: getStuId(),
-                                stuName: getStuName(),
-                                stuClass: getStuClass(),
-                            }
-                        } : {})
-                    }, 
-                    fileTransfer: {
-                        numOfSubConn: numOfSubConn,
-                    }
-                })
+                if (this.role == Role.INITIATOR) {
+                    this.handshake()
+                }
 
                 // 发起首次心跳
                 this.heartbeat()
@@ -140,7 +148,7 @@ export class MainConnection {
                 this.conn = null
                 this.peerInfo = null
                 this.lastHeartbeat = -1
-                if(this.role == Role.CONNECTOR) {
+                if (this.role == Role.CONNECTOR) {
                     message.error('连接已断开')
                     this.goHome()
                 }
@@ -150,42 +158,53 @@ export class MainConnection {
 
     handleData(data) {
         // console.log('Received', data)
-        switch(data.type) {
+        const { type, detail } = data
+        switch (type) {
             // 握手
             case 'handshake':
-                this.peerInfo = data.detail.device
+                this.peerInfo = detail.device
 
                 // 初始化文件传输
                 this.fileTransfer = new FileTransfer({
-                    role: this.role, 
-                    peer: this.peer, 
-                    mainConn: this.conn, 
+                    role: this.role,
+                    peer: this.peer,
+                    mainConn: this.conn,
                     mainConnSend: this.send.bind(this),
-                    numOfSubConn: data.detail.fileTransfer.numOfSubConn,
+                    numOfWorkers: detail.fileTransfer.numOfWorkers,
                     fileList: this.fileList,
-                    updateFileListRecv: this.updateFileListRecv,
+                    updateFileListRecv: this.updateFileListRecv
                 })
+
+                // 接入端回复握手
+                if (this.role == Role.CONNECTOR) {
+                    this.handshake()
+                }
                 break
-            
+
             // 心跳
             case 'ping':
                 this.lastHeartbeat = Date.now()
                 this.send('pong')
                 break
-            
+
             case 'pong':
                 this.lastHeartbeat = Date.now()
                 break
             
+            // Worker连接
+            case 'workerInitFinish':
+                this.fileTransfer.connectWorker(detail.peerId)
+                break
+
             // 文件传输
             case 'presend':
-                this.fileTransfer.handlePresend(data.detail)
+                this.fileTransfer.handlePresend(detail)
                 break
 
             case 'presendReady':
-                this.fileTransfer.handlePresendReady(data.detail)
+                this.fileTransfer.handlePresendReady(detail)
                 break
-            
+
             // 拒绝连接
             case 'refuse':
                 message.error('会话已有连接，无法加入')
@@ -193,22 +212,22 @@ export class MainConnection {
                 this.conn.close()
                 this.goHome()
                 break
-            
+
             default:
                 message.error('接收到不支持的数据')
         }
     }
-    
+
     heartbeat() {
         // 心跳
-        if(!this.conn) {
+        if (!this.conn) {
             // 没有连接，不发送心跳
             return
         }
-        if(this.lastHeartbeat != -1 && Date.now() - this.lastHeartbeat > 15000) {
+        if (this.lastHeartbeat != -1 && Date.now() - this.lastHeartbeat > 15000) {
             // 15秒未收到心跳，断开连接
             message.error('咦，好像断开连接了')
-            if(this.conn) this.conn.close()
+            if (this.conn) this.conn.close()
             return
         }
         this.send('ping')
@@ -218,18 +237,18 @@ export class MainConnection {
     tryReconnect() {
         let retryCount = 0
         let retryInterval = setInterval(() => {
-            if(!this.peer.disconnected) {
-                // console.log('reconnected')
+            if (!this.peer.disconnected) {
+                console.log('tryReconnect: reconnected')
                 clearInterval(retryInterval)
                 return
             }
-            if(retryCount >= 5) {
-                // console.log('reconnect failed')
+            if (retryCount >= 5) {
+                console.log('tryReconnect: reconnect failed')
                 clearInterval(retryInterval)
                 return
             }
             retryCount++
-            // console.log('reconnecting...')
+            console.log('tryReconnect: reconnecting...')
             this.peer.reconnect()
         }, 2000)
     }
@@ -237,9 +256,21 @@ export class MainConnection {
     handlePeerJSError(err) {
         // console.log(err.type, err)
 
-        switch(err.type) {
+        switch (err.type) {
             case PeerJSError.PeerErrorType.Network:
-                this.tryReconnect()
+                Modal.confirm({
+                    title: '咦，好像断开连接了',
+                    icon: createVNode(ExclamationCircleOutlined),
+                    content: '是否尝试重新连接？',
+                    okText: '重新连接',
+                    cancelText: '退出',
+                    onOk: () => {
+                        this.tryReconnect()
+                    },
+                    onCancel: () => {
+                        this.goHome()
+                    },
+                })
                 break
         }
     }
