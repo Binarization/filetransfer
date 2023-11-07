@@ -57,7 +57,7 @@ export class FileTransfer {
         })
     }
 
-    handleData(data) {
+    async handleData(data) {
         console.log('handleData: ', data)
         const { uid, index, arrayBuffer } = data
         if(this.receivingFileList[uid]) {
@@ -128,9 +128,9 @@ export class FileTransfer {
         this.checkQueue()
     }
 
-    checkQueue() {
+    async checkQueue() {
         console.log('checkQueue: ', this.idleSubConns.length, this.sendingFileList.length)
-        if(this.idleSubConns.length > 0 && this.sendingFileList.length > 0) {
+        while(this.idleSubConns.length > 0 && this.sendingFileList.length > 0) {
             let conn = this.idleSubConns.shift()
             let file = this.sendingFileList[0]
             let chunk = file.chucks.shift()
@@ -199,14 +199,14 @@ export class FileTransfer {
                 uid, 
                 status: 'done',
                 percent: 100,
-                file: this.chunksToFile(uid)
+                file: await this.chunksToFile(uid)
             })
             delete this.receivingFileList[uid]
             console.log('receive done: ', this.fileList.receive)
         }
     }
 
-    chunksToFile(uid) {
+    async chunksToFile(uid) {
         let chunks = this.receivingFileList[uid].chunks
         let type = this.receivingFileList[uid].type
         let blob = new Blob(chunks)
