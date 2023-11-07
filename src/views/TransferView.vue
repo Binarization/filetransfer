@@ -48,7 +48,7 @@
                 <span class="container-title">发送文件</span>
                 <div v-if="mainConnection.peerInfo === null" class="placeholder">等待加入会话</div>
                 <a-upload-dragger v-else name="file" list-type="picture-card" :multiple="true" :disabled="!allowUpload"
-                    :customRequest="handleUpload" @change="handleChange" @preview="handlePreview">
+                    :customRequest="handleUpload" :fileList="fileList.send" @change="handleChange" @preview="handlePreview">
                     <p v-if="allowUpload" class="ant-upload-drag-icon">
                         <inbox-outlined></inbox-outlined>
                     </p>
@@ -56,13 +56,20 @@
                     <p class="ant-upload-hint">
 
                     </p>
+                    <template v-slot:iconRender="{file}">
+                        <div v-if="file.status === 'uploading'">发送中</div>
+                    </template>
                 </a-upload-dragger>
             </div>
-            <div class="container">
+            <div class="container receive">
                 <span class="container-title">接收文件</span>
-                <div class="placeholder">暂无文件</div>
-                <a-upload>
-                </a-upload>
+                <div v-if="fileList.receive.length == 0" class="placeholder">暂无文件</div>
+                <a-upload-dragger v-else list-type="picture-card" :multiple="true" :disabled="!allowReceive"
+                    :fileList="fileList.receive" @preview="handlePreview">
+                    <template v-slot:iconRender="{file}">
+                        <div v-if="file.status === 'uploading'">接收中</div>
+                    </template>
+                </a-upload-dragger>
             </div>
         </div>
         <!-- 图片预览 -->
@@ -89,10 +96,14 @@ export default {
     },
     data() {
         return {
-            mainConnection: new MainConnection(),
+            mainConnection: null,
             previewVisible: false,
             previewSrc: '',
             Role: Role,
+            fileList: {
+                send: [],
+                receive: [],
+            },
         }
     },
     computed: {
@@ -113,6 +124,9 @@ export default {
         isQRCodeLoading() {
             return this.mainConnection.peerId === '' ? 'loading' : 'active'
         },
+    },
+    created() {
+        this.mainConnection = new MainConnection(this.fileList, this.updateFileRecvFinish)
     },
     mounted() {
         // 关闭先前未关闭会话
@@ -141,18 +155,42 @@ export default {
         handleGoHome() {
             this.$router.push('/')
         },
+        updateFileRecvFinish(uid, file) {
+            this.$nextTick(() => {
+                // 更新fileList.receive里的对应文件status和percent
+                const item = this.fileList.receive.find(file => file.uid === uid)
+                if(item) {
+                    item.status = 'done'
+                    item.percent = 100
+                    item.originFileObj = file
+                }
+            })
+        },
         handlePeerJSError(err) {
             if(PeerJSError.getPeerJSErrorMsg(err)) {
-                if(err.type === PeerJSError.PeerErrorType.BrowserIncompatible) {
-                    this.$router.replace({
-                        name: 'warning',
-                        params: {
-                            title: '不支持的浏览器',
-                            msg: PeerJSError.getPeerJSErrorMsg(err)
-                        }
-                    })
-                } else {
-                    message.error(PeerJSError.getPeerJSErrorMsg(err))
+                switch(err.type) {
+                    case PeerJSError.PeerErrorType.BrowserIncompatible:
+                        this.$router.replace({
+                            name: 'warning',
+                            params: {
+                                title: '不支持的浏览器',
+                                msg: PeerJSError.getPeerJSErrorMsg(err)
+                            }
+                        })
+                        break
+                    
+                    case PeerJSError.PeerErrorType.PeerUnavailable:
+                        this.$router.replace({
+                            name: 'warning',
+                            params: {
+                                title: '连接失败',
+                                msg: PeerJSError.getPeerJSErrorMsg(err)
+                            }
+                        })
+                        break
+
+                    default:
+                        message.error(PeerJSError.getPeerJSErrorMsg(err))
                 }
             } else {
                 message.error(`PeerJSError: ${err.message}`)
@@ -168,32 +206,32 @@ export default {
             }
         },
         setPreviewVisible(value) {
-            this.previewVisible = value;
+            this.previewVisible = value
         },
         handleChange(info) {
-            const status = info.file.status;
-            if (status !== 'uploading') {
-                console.log(info.file, info.fileList);
-            }
+            const status = info.file.status
+            const fileList = info.fileList
             if (status === 'done') {
                 message.success(`${info.file.name}发送成功`);
             } else if (status === 'error') {
                 message.error(`${info.file.name}发送失败`);
             }
+            this.fileList.send = [...fileList]
         },
-        // handleUpload({ file, onSuccess, onError, onProgress }) {
-        handleUpload({ file, onSuccess, onProgress }) {
-            console.log(file)
-            let progress = 0;
-            setInterval(() => {
-                if (progress >= 100) return
-                progress += 20
-                onProgress({ percent: progress })
-            }, 1000)
-            setTimeout(() => {
-                onSuccess('ok')
-            }, 5000)
-        },
+        handleUpload({ file, onSuccess, onError, onProgress }) {
+            this.mainConnection.fileTransfer.presend(file, onSuccess, onError, onProgress)
+        }, 
+        // handleUpload({ file, onSuccess, onProgress }) {
+        //     let progress = 0;
+        //     setInterval(() => {
+        //         if (progress >= 100) return
+        //         progress += 20
+        //         onProgress({ percent: progress })
+        //     }, 1000)
+        //     setTimeout(() => {
+        //         onSuccess('ok')
+        //     }, 5000)
+        // },
     },
 }
 </script>
@@ -338,12 +376,16 @@ export default {
     max-height: 65vh;
 }
 
-.ant-upload-wrapper {
+:global(.content-container .container.receive .ant-upload) {
+    display: none;
+}
+
+:global(.ant-upload-wrapper) {
     display: contents;
 }
 
 :global(.ant-upload-list) {
-    margin: 7px;
+    margin: 7px 0;
     overflow: auto;
 }
 
