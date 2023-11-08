@@ -139,13 +139,13 @@ export class MainConnection {
                 // 监听数据事件
                 this.conn.on('data', this.handleData.bind(this))
 
-                // 发起握手
                 if (this.role == Role.INITIATOR) {
+                    // 发起握手
                     this.handshake()
-                }
 
-                // 发起首次心跳
-                this.heartbeat()
+                    // 发起首次心跳
+                    this.heartbeat()
+                }
             })
 
             // 监听连接关闭
@@ -189,12 +189,12 @@ export class MainConnection {
 
             // 心跳
             case 'ping':
-                this.lastHeartbeat = Date.now()
+                this.updateHeartbeat()
                 this.send('pong')
                 break
 
             case 'pong':
-                this.lastHeartbeat = Date.now()
+                this.updateHeartbeat()
                 break
 
             // Worker连接
@@ -230,12 +230,6 @@ export class MainConnection {
             // 没有连接，不发送心跳
             return
         }
-        // 文件上传过程中不发送心跳
-        if (this.fileTransfer && this.fileTransfer.isTransferring()) {
-            this.lastHeartbeat == -1
-            setTimeout(this.heartbeat.bind(this), 15000)
-            return
-        }
         if (this.lastHeartbeat != -1 && Date.now() - this.lastHeartbeat > 15000) {
             // 15秒未收到心跳，断开连接
             message.error('咦，好像断开连接了')
@@ -244,6 +238,10 @@ export class MainConnection {
         }
         this.send('ping')
         setTimeout(this.heartbeat.bind(this), 5000)
+    }
+
+    updateHeartbeat() {
+        this.lastHeartbeat = Date.now()
     }
     
     tryReconnect() {

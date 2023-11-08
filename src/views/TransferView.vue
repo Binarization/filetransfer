@@ -155,7 +155,7 @@ export default {
         handleGoHome() {
             this.$router.push('/')
         },
-        updateFileListRecv({uid, status, percent, file} = {}) {
+        updateFileListRecv({uid, status, percent, file, thumbUrl} = {}) {
             this.$nextTick(() => {
                 // 更新fileList.receive里的对应文件status和percent
                 const item = this.fileList.receive.find(file => file.uid === uid)
@@ -163,6 +163,7 @@ export default {
                     if(status) item.status = status
                     if(percent) item.percent = percent
                     if(file) item.originFileObj = file
+                    if(thumbUrl) item.thumbUrl = thumbUrl
                 }
             })
         },
@@ -221,17 +222,6 @@ export default {
         handleUpload({ file, onSuccess, onError, onProgress }) {
             this.mainConnection.fileTransfer.presend(file, onSuccess, onError, onProgress)
         }, 
-        // handleUpload({ file, onSuccess, onProgress }) {
-        //     let progress = 0;
-        //     setInterval(() => {
-        //         if (progress >= 100) return
-        //         progress += 20
-        //         onProgress({ percent: progress })
-        //     }, 1000)
-        //     setTimeout(() => {
-        //         onSuccess('ok')
-        //     }, 5000)
-        // },
     },
 }
 </script>

@@ -1,4 +1,4 @@
-import { message } from "ant-design-vue"
+import localForage from 'localforage'
 import { Role } from "./Enums"
 
 export const numOfSubConns = 8
@@ -27,6 +27,8 @@ export class FileTransfer {
         this.preSendFileList = {}
         this.sendingFileList = []
         this.receivingFileList = {}
+
+        this.transferringChunks = {}
 
         if(this.role === Role.INITIATOR) {
             this.createSubConn()
@@ -65,18 +67,43 @@ export class FileTransfer {
             if(this.role === Role.INITIATOR && !this.isSubConnsReady()) {
                 this.createSubConn()
             }
-            conn.on('data', this.handleData.bind(this))
+            conn.on('data', (data) => this.handleData(conn, data))
         })
     }
 
-    async handleData(data) {
+    async handleData(conn, data) {
         console.log('handleData: ', data)
-        const { uid, index, arrayBuffer } = data
-        if(this.receivingFileList[uid]) {
-            this.handleChunk(uid, index, arrayBuffer)
-        } else {
-            console.error('Unpresend file: ', uid)
-            message.error(`文件传输出错: 未预传文件(${uid})`)
+        const { type, detail } = data
+        switch(type) {
+            case 'areYouReady':
+                // 预先将子连接从空闲队列中移除
+                this.idleSubConns.splice(this.idleSubConns.indexOf(conn), 1)
+                this.transferringChunks[detail.id] = {
+                    conn, 
+                }
+                this.sendIAmReady(conn, detail.id)
+                break
+            
+            case 'iAmReady':
+                this.sendChunk(detail.id)
+                break
+            
+            case 'chunk':
+                if(this.receivingFileList[detail.uid]) {
+                    this.handleChunk(detail.uid, detail.index, detail.arrayBuffer)
+                    this.sendDone(conn, `${detail.uid}-${detail.index}`)
+                }
+                break
+            
+            case 'done':
+                delete this.transferringChunks[detail.id]
+                this.idleSubConns.push(conn)
+                this.checkQueue()
+                break
+
+            default:
+                console.error('Unknown message: ', data)
+                break
         }
     }
 
@@ -117,8 +144,8 @@ export class FileTransfer {
             percent: 0,
         }
         this.receivingFileList[detail.uid] = {
-            chunks: new Array(detail.numOfChunks),
             received: 0,
+            numOfChunks: detail.numOfChunks,
             size: detail.size,
             type: detail.type,
             file, 
@@ -152,18 +179,57 @@ export class FileTransfer {
                 this.sendingFileList.shift()
             }
 
-            this.sendChunk(conn, file, chunk)
+            this.sendAreYouReady(conn, file, chunk)
         }
     }
 
-    async sendChunk(conn, file, chunk) {
+    sendAreYouReady(conn, file, chunk) {
+        const uid = file.file.uid
+        const index = chunk.index
+        const id = `${uid}-${index}`
+        this.transferringChunks[id] = {
+            conn, 
+            file, 
+            chunk,
+        }
+        conn.send({
+            type: 'areYouReady',
+            detail: {
+                id
+            }
+        })
+    }
+
+    sendIAmReady(conn, id) {
+        conn.send({
+            type: 'iAmReady',
+            detail: {
+                id
+            }
+        })
+    }
+
+    sendDone(conn, id) {
+        conn.send({
+            type: 'done',
+            detail: {
+                id
+            }
+        })
+    }
+
+    async sendChunk(id) {
+        const { conn, file, chunk } = this.transferringChunks[id]
         conn.fileReaderWorker.onmessage = (e) => {
             switch(typeof(e.data)) {
                 case 'object':
                     conn.send({
-                        uid: file.file.uid,
-                        index: chunk.index,
-                        arrayBuffer: e.data,
+                        type: 'chunk',
+                        detail: {
+                            uid: file.file.uid,
+                            index: chunk.index,
+                            arrayBuffer: e.data,
+                        }
                     })
                     file.sended += chunk.blob.size
                     file.file.percent = parseInt(file.sended / file.file.size * 100)
@@ -172,8 +238,6 @@ export class FileTransfer {
                         file.file.status = 'done'
                         file.onSuccess(file.file)
                     }
-                    this.idleSubConns.push(conn)
-                    this.checkQueue()
                     break
                 
                 case 'string':
@@ -193,51 +257,90 @@ export class FileTransfer {
 
     async handleChunk(uid, index, arrayBuffer) {
         // console.log('handleChunk: ', uid, index, arrayBuffer, this.receivingFileList[uid])
-        let chunks = this.receivingFileList[uid].chunks
+        // 使用IndexedDB存储分片
+        const chunkId = `${uid}-${index}`
+        await localForage.setItem(chunkId, arrayBuffer)
+
         let received = this.receivingFileList[uid].received
         let size = this.receivingFileList[uid].size
-        chunks[index] = arrayBuffer
-
-        // console.log('receive blob: ', chunks[index])
+        
         // 更新进度
-        received += chunks[index].byteLength
+        received += arrayBuffer.byteLength
         this.receivingFileList[uid].received = received
         this.updateFileListRecv({
             uid, 
             percent: parseInt(received / size * 100),
         })
 
-        chunks[index] = new Uint8Array()
-        
         // 检查当前文件是否传输完毕
         if(received === this.receivingFileList[uid].size) {
+            const file = await this.chunksToFile(uid)
             this.updateFileListRecv({
                 uid, 
                 status: 'done',
                 percent: 100,
-                file: await this.chunksToFile(uid)
             })
+
+            // 判断文件是否为图片
+            if(this.receivingFileList[uid].type.startsWith('image')) {
+                // 生成缩略图
+                this.createThumbnail(file).then(thumbUrl => {
+                    this.updateFileListRecv({
+                        uid, 
+                        thumbUrl,
+                    })
+                })
+            }
+
+            // 浏览器下载文件
+            const a = document.createElement('a')
+            a.href = URL.createObjectURL(file)
+            a.download = file.name
+            a.click()
+
             delete this.receivingFileList[uid]
             // console.log('receive done: ', this.fileList.receive)
         }
     }
 
     async chunksToFile(uid) {
-        let chunks = this.receivingFileList[uid].chunks
-        let type = this.receivingFileList[uid].type
-        // 合并ArrayBuffer
-        let arrayBuffer = new ArrayBuffer(this.receivingFileList[uid].size)
-        let received = 0
-        for(let i = 0; i < chunks.length; i++) {
-            let chunk = chunks[i]
-            new Uint8Array(arrayBuffer).set(new Uint8Array(chunk), received)
-            received += chunk.byteLength
+        let chunks = []
+        let numOfChunks = this.receivingFileList[uid].numOfChunks
+        for(let i = 0; i < numOfChunks; i++) {
+            chunks.push(await localForage.getItem(`${uid}-${i}`))
+            localForage.removeItem(`${uid}-${i}`)
         }
+        let type = this.receivingFileList[uid].type
         // 生成Blob
-        let blob = new Blob([arrayBuffer], { type })
+        let blob = new Blob(chunks, { type })
         // 生成File
         let file = new File([blob], this.receivingFileList[uid].file.name, { type })
         file.uid = uid
         return file
+    }
+
+    async createThumbnail(file) {
+        return new Promise((resolve, reject) => {
+            const canvas = document.createElement('canvas')
+            const ctx = canvas.getContext('2d')
+            const img = new Image()
+            img.onload = () => {
+                const { width, height } = img
+                const ratio = width / height
+                const thumbnailWidth = 320
+                const thumbnailHeight = thumbnailWidth / ratio
+                canvas.width = thumbnailWidth
+                canvas.height = thumbnailHeight
+                ctx.drawImage(img, 0, 0, thumbnailWidth, thumbnailHeight)
+                canvas.toBlob((blob) => {
+                    const reader = new FileReader()
+                    reader.onload = () => {
+                        resolve(reader.result)
+                    }
+                    reader.readAsDataURL(blob)
+                })
+            }
+            img.src = URL.createObjectURL(file)
+        })
     }
 }
