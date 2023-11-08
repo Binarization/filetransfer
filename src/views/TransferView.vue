@@ -44,39 +44,41 @@
             </div>
         </div>
         <div class="content-container">
-            <div class="container">
-                <span class="container-title">发送文件</span>
-                <div v-if="mainConnection.peerInfo === null" class="placeholder">等待加入会话</div>
-                <a-upload-dragger v-else name="file" list-type="picture-card" :multiple="true" :disabled="!allowUpload"
-                    :customRequest="handleUpload" :fileList="fileList.send" @change="handleChange" @preview="handlePreview">
-                    <p v-if="allowUpload" class="ant-upload-drag-icon">
-                        <inbox-outlined></inbox-outlined>
-                    </p>
-                    <p class="ant-upload-text">{{ allowUpload ? "点击或拖拽文件到此区域发送" : "由于校方管控，不支持发送文件" }}</p>
-                    <p class="ant-upload-hint">
+            <a-spin :spinning="connecting" tip="正在建立连接...">
+                <div class="container">
+                    <span class="container-title">发送文件</span>
+                    <div v-if="mainConnection.peerInfo === null" class="placeholder">等待加入会话</div>
+                    <a-upload-dragger v-else name="file" list-type="picture-card" :multiple="true" :disabled="!allowUpload"
+                        :customRequest="handleUpload" :fileList="fileList.send" @change="handleChange" @preview="handlePreview">
+                        <p v-if="allowUpload" class="ant-upload-drag-icon">
+                            <inbox-outlined></inbox-outlined>
+                        </p>
+                        <p class="ant-upload-text">{{ allowUpload ? "点击或拖拽文件到此区域发送" : "由于校方管控，不支持发送文件" }}</p>
+                        <p class="ant-upload-hint">
 
-                    </p>
-                    <template v-slot:iconRender="{file}">
-                        <div v-if="file.status === 'uploading'">发送中</div>
-                        <div v-else-if="file.status === 'done'">
-                            <FileIcon :file="file" />
-                        </div>
-                    </template>
-                </a-upload-dragger>
-            </div>
-            <div class="container receive">
-                <span class="container-title">接收文件</span>
-                <div v-if="fileList.receive.length == 0" class="placeholder">暂无文件</div>
-                <a-upload-dragger v-else list-type="picture-card" :multiple="true" :disabled="!allowReceive"
-                    :fileList="fileList.receive" @preview="handlePreview">
-                    <template v-slot:iconRender="{file}">
-                        <div v-if="file.status === 'uploading'">接收中</div>
-                        <div v-else-if="file.status === 'done'">
-                            <FileIcon :file="file" />
-                        </div>
-                    </template>
-                </a-upload-dragger>
-            </div>
+                        </p>
+                        <template v-slot:iconRender="{file}">
+                            <div v-if="file.status === 'uploading'">发送中</div>
+                            <div v-else-if="file.status === 'done'">
+                                <FileIcon :file="file" />
+                            </div>
+                        </template>
+                    </a-upload-dragger>
+                </div>
+                <div class="container receive">
+                    <span class="container-title">接收文件</span>
+                    <div v-if="fileList.receive.length == 0" class="placeholder">暂无文件</div>
+                    <a-upload-dragger v-else list-type="picture-card" :multiple="true" :disabled="!allowReceive"
+                        :fileList="fileList.receive" @preview="handlePreview">
+                        <template v-slot:iconRender="{file}">
+                            <div v-if="file.status === 'uploading'">接收中</div>
+                            <div v-else-if="file.status === 'done'">
+                                <FileIcon :file="file" />
+                            </div>
+                        </template>
+                    </a-upload-dragger>
+                </div>
+            </a-spin>
         </div>
         <!-- 图片预览 -->
         <a-image :style="{ display: 'none' }" :preview="{
@@ -112,6 +114,7 @@ export default {
                 send: [],
                 receive: [],
             },
+            connecting: false,
         }
     },
     computed: {
@@ -134,7 +137,7 @@ export default {
         },
     },
     created() {
-        this.mainConnection = new MainConnection(this.fileList, this.updateFileListRecv)
+        this.mainConnection = new MainConnection(this.fileList, this.updateConnecting, this.updateFileListRecv)
     },
     mounted() {
         // 关闭先前未关闭会话
@@ -162,6 +165,11 @@ export default {
         },
         handleGoHome() {
             this.$router.push('/')
+        },
+        updateConnecting(value) {
+            this.$nextTick(() => {
+                this.connecting = value
+            })
         },
         updateFileListRecv({uid, status, percent, file, thumbUrl} = {}) {
             this.$nextTick(() => {
@@ -283,7 +291,7 @@ export default {
     margin-right: 20px;
 }
 
-.sidebar-container>*:not(:last-child), .content-container>*:not(:last-child) {
+.sidebar-container>*:not(:last-child), .content-container>*>*>*:not(:last-child) {
     margin-bottom: 13px;
 }
 

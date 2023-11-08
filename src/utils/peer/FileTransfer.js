@@ -11,6 +11,7 @@ export class FileTransfer {
         mainConnSend = null,
         numOfSubConns = numOfSubConns, 
         fileList = null,
+        updateConnecting = null,
         updateFileListRecv = null,
     } = {}){
         this.chunkSize = 16 * 1024 * 1024
@@ -22,6 +23,7 @@ export class FileTransfer {
         this.idleSubConns = []
         this.numOfSubConns = numOfSubConns
         this.fileList = fileList
+        this.updateConnecting = updateConnecting
         this.updateFileListRecv = updateFileListRecv
 
         this.preSendFileList = {}
@@ -48,6 +50,7 @@ export class FileTransfer {
         conn.fileReaderWorker = new Worker(new URL('@/workers/FileReader.worker.js', import.meta.url))
         this.subConns.push(conn)
         this.idleSubConns.push(conn)
+        this.updateConnecting(!this.isSubConnsReady())
     }
 
     isSubConnsReady() {

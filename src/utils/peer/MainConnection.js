@@ -9,7 +9,7 @@ import DeviceInfo from '@/utils/DeviceInfo'
 import PeerJSError from './PeerJSError'
 
 export class MainConnection {
-    constructor(fileList, updateFileListRecv) {
+    constructor(fileList, updateConnecting, updateFileListRecv) {
         this.role = Role.INITIATOR
         this.peer = new Peer({ debug: 2 })
         this.peerId = ''
@@ -18,6 +18,7 @@ export class MainConnection {
         this.fileTransfer = null
         this.fileList = fileList
         this.lastHeartbeat = -1
+        this.updateConnecting = updateConnecting
         this.updateFileListRecv = updateFileListRecv
 
         this.peer.on('error', this.handlePeerJSError.bind(this))
@@ -85,10 +86,12 @@ export class MainConnection {
     }
 
     disconnect() {
+        this.updateConnecting(false)
         this.peer.disconnect()
     }
 
     close() {
+        this.updateConnecting(false)
         if (this.conn) {
             this.conn.close()
             this.conn = null
@@ -100,6 +103,7 @@ export class MainConnection {
     }
 
     destroy() {
+        this.updateConnecting(false)
         if (this.role == Role.CONNECTOR) {
             this.close()
         }
@@ -133,6 +137,7 @@ export class MainConnection {
             }
         } else {
             // 如果没有连接，直接接受连接
+            this.updateConnecting(true)
             this.conn = conn
 
             this.conn.on('open', () => {
@@ -178,6 +183,7 @@ export class MainConnection {
                     mainConnSend: this.send.bind(this),
                     numOfSubConns: detail.fileTransfer.numOfSubConns,
                     fileList: this.fileList,
+                    updateConnecting: this.updateConnecting,
                     updateFileListRecv: this.updateFileListRecv
                 })
 
@@ -274,16 +280,18 @@ export class MainConnection {
 
         switch (err.type) {
             case PeerJSError.PeerErrorType.Network:
-                Modal.confirm({
-                    title: '咦，好像断开连接了',
-                    icon: createVNode(ExclamationCircleOutlined),
-                    content: '是否尝试重新连接？',
-                    okText: '重新连接',
-                    cancelText: '退出',
-                    onOk: this.tryReconnect.bind(this),
-                    onCancel: () => {
-                        this.goHome()
-                    },
+                this.tryReconnect().catch(() => {
+                    Modal.confirm({
+                        title: '咦，好像断开连接了',
+                        icon: createVNode(ExclamationCircleOutlined),
+                        content: '是否尝试重新连接？',
+                        okText: '重新连接',
+                        cancelText: '退出',
+                        onOk: this.tryReconnect.bind(this),
+                        onCancel: () => {
+                            this.goHome()
+                        },
+                    })
                 })
                 break
         }
