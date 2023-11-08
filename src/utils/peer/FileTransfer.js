@@ -36,7 +36,7 @@ export class FileTransfer {
     }
 
     createSubConn() {
-        this.handleConnection(this.peer.connect(this.mainConn.peer))
+        this.handleConnection(this.peer.connect(this.mainConn.peer, { reliable: true }))
     }
 
     appendSubConn(conn) {

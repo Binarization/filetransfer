@@ -39,7 +39,7 @@ export class MainConnection {
             // 加入现有会话
             this.peer.on('open', (id) => {
                 this.peerId = id
-                this.handleConnection(this.peer.connect(initiatorPeerId))
+                this.handleConnection(this.peer.connect(initiatorPeerId, { reliable: true }))
             })
         }
 
