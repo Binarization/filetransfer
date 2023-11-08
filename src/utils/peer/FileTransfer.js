@@ -13,7 +13,14 @@ export class FileTransfer {
         fileList = null,
         updateFileListRecv = null,
     } = {}){
-        this.chunkSize = 16 * 1024 * 1024 // 16MB
+        /**
+         * chunkSize: 分片大小
+         * 16KB
+         * The original 60000 bytes setting does not work when sending data from Firefox to Chrome, which is "cut off" after 16384 bytes and delivered individually.
+         * refer: https://github.com/peers/peerjs/blob/9ab0968ad7c7317946aa14d5bdfd632ffcb0c9d4/lib/dataconnection/BufferedConnection/binaryPackChunker.ts#L2
+         */
+        // this.chunkSize = 16384 
+        this.chunkSize = 16 * 1024 * 1024
         this.role = role
         this.peer = peer
         this.mainConn = mainConn
@@ -29,6 +36,7 @@ export class FileTransfer {
         this.receivingFileList = {}
 
         this.transferringChunks = {}
+        this.transferringConns = {}
 
         if(this.role === Role.INITIATOR) {
             this.createSubConn()
@@ -73,35 +81,41 @@ export class FileTransfer {
 
     async handleData(conn, data) {
         console.log('handleData: ', data)
-        const { type, detail } = data
-        switch(type) {
-            case 'areYouReady':
-                // 预先将子连接从空闲队列中移除
-                this.idleSubConns.splice(this.idleSubConns.indexOf(conn), 1)
-                this.transferringChunks[detail.id] = {
-                    conn, 
-                }
-                this.sendIAmReady(conn, detail.id)
-                break
-            
-            case 'iAmReady':
-                this.sendChunk(detail.id)
-                break
-            
-            case 'chunk':
-                if(this.receivingFileList[detail.uid]) {
-                    this.handleChunk(detail.uid, detail.index, detail.arrayBuffer)
-                    this.sendDone(conn, `${detail.uid}-${detail.index}`)
-                }
-                break
-            
-            case 'done':
-                this.handleDone(detail)
-                break
+        if(data instanceof Uint8Array) {
+            const { uid, index } = this.transferringConns[conn.connectionId]
+            this.handleChunk(conn, uid, index, data).then(() => {
+                this.sendDone(conn, `${uid}-${index}`)
+                delete this.transferringChunks[`${uid}-${index}`]
+                delete this.transferringConns[conn.connectionId]
+            })
+        } else {
+            const { type, detail } = data
+            switch(type) {
+                case 'areYouReady':
+                    // 预先将子连接从空闲队列中移除
+                    this.idleSubConns.splice(this.idleSubConns.indexOf(conn), 1)
+                    this.transferringChunks[detail.id] = {
+                        conn, 
+                    }
+                    this.transferringConns[conn.connectionId] = {
+                        uid: detail.uid,
+                        index: detail.index,
+                    }
+                    this.sendIAmReady(conn, detail.id)
+                    break
+                
+                case 'iAmReady':
+                    this.sendChunk(detail.id)
+                    break
+                
+                case 'done':
+                    this.handleDone(detail)
+                    break
 
-            default:
-                console.error('Unknown message: ', data)
-                break
+                default:
+                    console.error('Unknown message: ', data)
+                    break
+            }
         }
     }
 
@@ -116,6 +130,8 @@ export class FileTransfer {
                 blob: file.slice(i, this.chunkSize * (index + 1))
             })
         }
+        console.log('presend: ', 'chucks: ', chucks)
+
         this.preSendFileList[file.uid] = {
             file,
             chucks,
@@ -190,10 +206,16 @@ export class FileTransfer {
             file, 
             chunk,
         }
+        this.transferringConns[conn.connectionId] = {
+            uid, 
+            index,
+        }
         conn.send({
             type: 'areYouReady',
             detail: {
-                id
+                id, 
+                uid, 
+                index,
             }
         })
     }
@@ -226,6 +248,7 @@ export class FileTransfer {
             file.onSuccess(file.file)
         }
         delete this.transferringChunks[detail.id]
+        delete this.transferringConns[conn.connectionId]
         this.idleSubConns.push(conn)
         this.checkQueue()
     }
@@ -235,18 +258,11 @@ export class FileTransfer {
         conn.fileReaderWorker.onmessage = (e) => {
             switch(typeof(e.data)) {
                 case 'object':
-                    conn.send({
-                        type: 'chunk',
-                        detail: {
-                            uid: file.file.uid,
-                            index: chunk.index,
-                            arrayBuffer: e.data,
-                        }
-                    })
+                    conn.send(e.data)
                     break
                 
                 case 'string':
-                    console.error(e.data)
+                    console.error('fileReaderWorker error: ', e.data)
                     file.file.status = 'error'
                     file.onError(file.file)
                     break
@@ -260,23 +276,44 @@ export class FileTransfer {
         this.checkQueue()
     }
 
-    async handleChunk(uid, index, arrayBuffer) {
-        // console.log('handleChunk: ', uid, index, arrayBuffer, this.receivingFileList[uid])
-        // 使用IndexedDB存储分片
+    async handleChunk(conn, uid, index, uint8Array) {
         const chunkId = `${uid}-${index}`
-        await localForage.setItem(chunkId, arrayBuffer)
-
-        let received = this.receivingFileList[uid].received
-        let size = this.receivingFileList[uid].size
         
-        // 更新进度
-        received += arrayBuffer.byteLength
-        this.receivingFileList[uid].received = received
-        this.updateFileListRecv({
-            uid, 
-            percent: parseInt(received / size * 100),
-        })
+        console.time(`save chunk ${chunkId}`)
+        const chunkSize = uint8Array.byteLength
+        let chunkSaverWorker = new Worker(new URL('@/workers/ChunkSaver.worker.js', import.meta.url), { type: 'module' })
+        chunkSaverWorker.onmessage = (e) => {
+            switch(e.data) {
+                case 'success':
+                    console.timeEnd(`save chunk ${chunkId}`)
+                    chunkSaverWorker.terminate()
+                    
+                    // 更新进度
+                    this.receivingFileList[uid].received += chunkSize
+                    this.updateFileListRecv({
+                        uid, 
+                        percent: parseInt(this.receivingFileList[uid].received / this.receivingFileList[uid].size * 100),
+                    })
 
+                    // 检查当前文件是否传输完毕
+                    this.checkFileDone(uid)
+                    break
+
+                case 'error':
+                    chunkSaverWorker.terminate()
+                    break
+                
+                default:
+                    console.error('chunkSaverWorker: unknown message: ', e.data)
+                    break
+            }
+        }
+        chunkSaverWorker.postMessage(chunkId)
+        chunkSaverWorker.postMessage(uint8Array.buffer, [uint8Array.buffer])
+    }
+
+    async checkFileDone(uid) {
+        let received = this.receivingFileList[uid].received
         // 检查当前文件是否传输完毕
         if(received === this.receivingFileList[uid].size) {
             const file = await this.chunksToFile(uid)

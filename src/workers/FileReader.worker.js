@@ -5,7 +5,8 @@ addEventListener('message', e => {
     // console.log('worker received: ', e.data)
     // 使用FileReader读取文件
     reader.onload = () => {
-        postMessage(reader.result)
+        // 转移ArrayBuffer
+        postMessage(reader.result, [reader.result])
     }
     reader.readAsArrayBuffer(e.data)
     reader.onerror = (err) => {
