@@ -58,6 +58,9 @@
                     </p>
                     <template v-slot:iconRender="{file}">
                         <div v-if="file.status === 'uploading'">发送中</div>
+                        <div v-else-if="file.status === 'done'">
+                            <FileIcon :file="file" />
+                        </div>
                     </template>
                 </a-upload-dragger>
             </div>
@@ -68,6 +71,9 @@
                     :fileList="fileList.receive" @preview="handlePreview">
                     <template v-slot:iconRender="{file}">
                         <div v-if="file.status === 'uploading'">接收中</div>
+                        <div v-else-if="file.status === 'done'">
+                            <FileIcon :file="file" />
+                        </div>
                     </template>
                 </a-upload-dragger>
             </div>
@@ -87,12 +93,14 @@ import { allowUpload, allowReceive, isPad } from '@/utils/07future'
 import { MainConnection } from '@/utils/peer/MainConnection'
 import { Role } from '@/utils/peer/Enums'
 import PeerJSError from '@/utils/peer/PeerJSError'
+import FileIcon from '@/components/FileIcon.vue'
 
 export default {
     components: {
         CopyOutlined,
         DisconnectOutlined,
         InboxOutlined,
+        FileIcon,
     },
     data() {
         return {
