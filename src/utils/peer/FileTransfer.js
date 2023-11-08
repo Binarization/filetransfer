@@ -13,7 +13,7 @@ export class FileTransfer {
         fileList = null,
         updateFileListRecv = null,
     } = {}){
-        this.chunkSize = 16 * 1024 * 1024 // 16MB
+        this.chunkSize = 16 * 1024 * 1024
         this.role = role
         this.peer = peer
         this.mainConn = mainConn
@@ -30,6 +30,9 @@ export class FileTransfer {
 
         this.transferringChunks = {}
         this.transferringConns = {}
+
+        // 清空localForage
+        localForage.clear()
 
         if(this.role === Role.INITIATOR) {
             this.createSubConn()
@@ -60,6 +63,9 @@ export class FileTransfer {
             conn.close()
             conn.fileReaderWorker.terminate()
         })
+        
+        // 清空localForage
+        localForage.clear()
     }
 
     handleConnection(conn) {
@@ -74,44 +80,45 @@ export class FileTransfer {
 
     async handleData(conn, data) {
         console.log('handleData: ', data)
-        if(data instanceof Uint8Array) {
-            const { uid, index } = this.transferringConns[conn.connectionId]
-            this.handleChunk(conn, uid, index, data).then(() => {
-                this.sendDone(conn, `${uid}-${index}`)
-                delete this.transferringChunks[`${uid}-${index}`]
-                delete this.transferringConns[conn.connectionId]
-                
-                // 检查当前文件是否传输完毕
-                this.checkFileDone(uid)
-            })
-        } else {
-            const { type, detail } = data
-            switch(type) {
-                case 'areYouReady':
-                    // 预先将子连接从空闲队列中移除
-                    this.idleSubConns.splice(this.idleSubConns.indexOf(conn), 1)
-                    this.transferringChunks[detail.id] = {
-                        conn, 
-                    }
-                    this.transferringConns[conn.connectionId] = {
-                        uid: detail.uid,
-                        index: detail.index,
-                    }
-                    this.sendIAmReady(conn, detail.id)
-                    break
-                
-                case 'iAmReady':
-                    this.sendChunk(detail.id)
-                    break
-                
-                case 'done':
-                    this.handleDone(detail)
-                    break
+        const { type, detail } = data
+        switch(type) {
+            case 'areYouReady':
+                // 预先将子连接从空闲队列中移除
+                this.idleSubConns.splice(this.idleSubConns.indexOf(conn), 1)
+                this.transferringChunks[detail.id] = {
+                    conn, 
+                }
+                this.transferringConns[conn.connectionId] = {
+                    uid: detail.uid,
+                    index: detail.index,
+                }
+                this.sendIAmReady(conn, detail.id)
+                break
+            
+            case 'iAmReady':
+                this.sendChunk(detail.id)
+                break
+            
+            case 'chunk':
+                if(this.receivingFileList[detail.uid]) {
+                    this.handleChunk(detail.uid, detail.index, detail.uint8Array).then(() => {
+                        this.sendDone(conn, `${detail.uid}-${detail.index}`)
+                        delete this.transferringChunks[`${detail.uid}-${detail.index}`]
+                        delete this.transferringConns[conn.connectionId]
 
-                default:
-                    console.error('Unknown message: ', data)
-                    break
-            }
+                        // 检查当前文件是否传输完毕
+                        this.checkFileDone(detail.uid)
+                    })
+                }
+                break
+            
+            case 'done':
+                this.handleDone(detail)
+                break
+
+            default:
+                console.error('Unknown message: ', data)
+                break
         }
     }
 
@@ -152,6 +159,8 @@ export class FileTransfer {
             name: detail.name,
             status: 'uploading',
             percent: 0,
+            size: detail.size,
+            type: detail.type,
         }
         this.receivingFileList[detail.uid] = {
             received: 0,
@@ -160,6 +169,7 @@ export class FileTransfer {
             type: detail.type,
             file, 
         }
+        console.log(file)
         this.fileList.receive.push(file)
         this.presendReady(detail.uid)
     }
@@ -254,7 +264,14 @@ export class FileTransfer {
         conn.fileReaderWorker.onmessage = (e) => {
             switch(typeof(e.data)) {
                 case 'object':
-                    conn.send(e.data)
+                    conn.send({
+                        type: 'chunk',
+                        detail: {
+                            uid: file.file.uid,
+                            index: chunk.index,
+                            uint8Array: e.data,
+                        }
+                    })
                     break
                 
                 case 'string':
@@ -272,13 +289,16 @@ export class FileTransfer {
         this.checkQueue()
     }
 
-    async handleChunk(conn, uid, index, uint8Array) {
+    async handleChunk(uid, index, uint8Array) {
         const chunkId = `${uid}-${index}`
+        console.time(`save chunk ${chunkId}`)
         await localForage.setItem(chunkId, uint8Array)
+        console.timeEnd(`save chunk ${chunkId}`)
+
+        // 更新进度
         let received = this.receivingFileList[uid].received
         let size = this.receivingFileList[uid].size
-        
-        // 更新进度
+
         received += uint8Array.byteLength
         this.receivingFileList[uid].received = received
         this.updateFileListRecv({
@@ -291,6 +311,7 @@ export class FileTransfer {
         let received = this.receivingFileList[uid].received
         // 检查当前文件是否传输完毕
         if(received === this.receivingFileList[uid].size) {
+            console.log('checkFileDone: ', uid)
             const file = await this.chunksToFile(uid)
             this.updateFileListRecv({
                 uid, 
@@ -321,6 +342,7 @@ export class FileTransfer {
     }
 
     async chunksToFile(uid) {
+        console.log('chunksToFile: ', uid)
         let chunks = []
         let numOfChunks = this.receivingFileList[uid].numOfChunks
         for(let i = 0; i < numOfChunks; i++) {
