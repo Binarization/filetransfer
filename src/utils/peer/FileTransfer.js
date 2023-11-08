@@ -96,9 +96,7 @@ export class FileTransfer {
                 break
             
             case 'done':
-                delete this.transferringChunks[detail.id]
-                this.idleSubConns.push(conn)
-                this.checkQueue()
+                this.handleDone(detail)
                 break
 
             default:
@@ -218,6 +216,20 @@ export class FileTransfer {
         })
     }
 
+    handleDone(detail) {
+        const { conn, file, chunk } = this.transferringChunks[detail.id]
+        file.sended += chunk.blob.size
+        file.file.percent = parseInt(file.sended / file.file.size * 100)
+        file.onProgress(file.file)
+        if(file.sended === file.file.size) {
+            file.file.status = 'done'
+            file.onSuccess(file.file)
+        }
+        delete this.transferringChunks[detail.id]
+        this.idleSubConns.push(conn)
+        this.checkQueue()
+    }
+
     async sendChunk(id) {
         const { conn, file, chunk } = this.transferringChunks[id]
         conn.fileReaderWorker.onmessage = (e) => {
@@ -231,13 +243,6 @@ export class FileTransfer {
                             arrayBuffer: e.data,
                         }
                     })
-                    file.sended += chunk.blob.size
-                    file.file.percent = parseInt(file.sended / file.file.size * 100)
-                    file.onProgress(file.file)
-                    if(file.sended === file.file.size) {
-                        file.file.status = 'done'
-                        file.onSuccess(file.file)
-                    }
                     break
                 
                 case 'string':
