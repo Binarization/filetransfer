@@ -1,7 +1,7 @@
 import localForage from 'localforage'
 import { Role } from "./Enums"
 
-export const numOfSubConns = 8
+export const numOfSubConns = 12
 
 export class FileTransfer {
     constructor({
@@ -13,7 +13,7 @@ export class FileTransfer {
         fileList = null,
         updateFileListRecv = null,
     } = {}){
-        this.chunkSize = 20 * 1024 * 1024 // 20MB
+        this.chunkSize = 16 * 1024 * 1024 // 16MB
         this.role = role
         this.peer = peer
         this.mainConn = mainConn
@@ -36,7 +36,7 @@ export class FileTransfer {
     }
 
     createSubConn() {
-        this.handleConnection(this.peer.connect(this.mainConn.peer, { reliable: true }))
+        this.handleConnection(this.peer.connect(this.mainConn.peer))
     }
 
     appendSubConn(conn) {
@@ -320,7 +320,7 @@ export class FileTransfer {
     }
 
     async createThumbnail(file) {
-        return new Promise((resolve, reject) => {
+        return new Promise((resolve) => {
             const canvas = document.createElement('canvas')
             const ctx = canvas.getContext('2d')
             const img = new Image()
