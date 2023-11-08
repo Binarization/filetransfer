@@ -346,19 +346,19 @@ export class FileTransfer {
 
     async chunksToFile(uid) {
         console.log('chunksToFile: ', uid)
-        let chunks = []
-        let numOfChunks = this.receivingFileList[uid].numOfChunks
-        for(let i = 0; i < numOfChunks; i++) {
-            chunks.push(await localForage.getItem(`${uid}-${i}`))
-            localForage.removeItem(`${uid}-${i}`)
-        }
-        let type = this.receivingFileList[uid].type
-        // 生成Blob
-        let blob = new Blob(chunks, { type })
-        // 生成File
-        let file = new File([blob], this.receivingFileList[uid].file.name, { type })
-        file.uid = uid
-        return file
+        const chunkMergerWorker = new Worker(new URL('@/workers/ChunkMerger.worker.js', import.meta.url), { type: 'module' })
+        chunkMergerWorker.postMessage({
+            uid, 
+            name: this.receivingFileList[uid].file.name,
+            type: this.receivingFileList[uid].file.type,
+            numOfChunks: this.receivingFileList[uid].numOfChunks,
+        })
+        return new Promise((resolve) => {
+            chunkMergerWorker.onmessage = (e) => {
+                console.log('chunksToFile: ', e.data)
+                resolve(e.data)
+            }
+        })
     }
 
     async createThumbnail(file) {
