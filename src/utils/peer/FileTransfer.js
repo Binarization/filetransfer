@@ -1,7 +1,7 @@
 import localForage from 'localforage'
 import { Role } from "./Enums"
 
-export const numOfSubConns = 32
+export const numOfSubConns = 24
 
 export class FileTransfer {
     constructor({
@@ -32,6 +32,7 @@ export class FileTransfer {
 
         this.preSendFileList = {}
         this.sendingFileList = []
+        this.unfinishedChunks = []
         this.receivingFileList = {}
 
         this.transferringChunks = {}
@@ -123,12 +124,29 @@ export class FileTransfer {
             if(this.fileReaderWorker) conn.fileReaderWorker.terminate()
             this.subConns.splice(this.subConns.indexOf(conn), 1)
             this.idleSubConns.splice(this.idleSubConns.indexOf(conn), 1)
+            this.updateConnecting(this.subConns.length < 1 && this.subConns[0]._open, `${this.subConns.length}/${this.numOfSubConns}`)
+
+            // 检查当前文件是否传输完毕
+            if(this.transferringChunks[conn.connectionId]) {
+                const { uid, index } = this.transferringConns[conn.connectionId]
+
+                // 重新加入未完成队列
+                const file = this.fileList.send.find(file => file.uid === uid)
+                if(file) {
+                    this.unfinishedChunks.push({
+                        file, 
+                        chunk: file.slice(index * this.chunkSize, (index + 1) * this.chunkSize),
+                    })
+                }
+
+                delete this.transferringConns[conn.connectionId]
+                delete this.transferringChunks[`${uid}-${index}`]
+            }
 
             // 延时一秒检查是否需要重新创建，避免对方关闭连接未来得及更新closed状态
             setTimeout(() => {
                 if(!this.closed && this.mainConn._open && this.subConns.length <= this.numOfSubConns) {
                     console.error('subconn closed unexpectedly: ', conn)
-                    this.updateConnecting(this.subConns.length < 1 && this.subConns[0]._open, `${this.subConns.length}/${this.numOfSubConns}`)
                     this.createSubConnIfNeeded()
                 }
             }, 1000)
@@ -258,17 +276,26 @@ export class FileTransfer {
 
     async checkQueue() {
         console.log('checkQueue: ', this.idleSubConns.length, this.sendingFileList.length, this.transferringChunks)
-        while(this.idleSubConns.length > 0 && this.sendingFileList.length > 0) {
-            let conn = this.idleSubConns.shift()
-            let file = this.sendingFileList[0]
-            let chunk = file.chucks.shift()
+        while(this.idleSubConns.length > 0) {
+            if(this.unfinishedChunks.length > 0) {
+                let conn = this.idleSubConns.shift()
+                let { file, chunk } = this.unfinishedChunks.shift()
+                
+                this.sendAreYouReady(conn, file, chunk)
+            } else if(this.sendingFileList.length > 0) {
+                let conn = this.idleSubConns.shift()
+                let file = this.sendingFileList[0]
+                let chunk = file.chucks.shift()
 
-            // 检查当前文件是否传输完毕
-            if(file.chucks.length === 0) {
-                this.sendingFileList.shift()
+                // 检查当前文件是否传输完毕
+                if(file.chucks.length === 0) {
+                    this.sendingFileList.shift()
+                }
+
+                this.sendAreYouReady(conn, file, chunk)
+            } else {
+                break
             }
-
-            this.sendAreYouReady(conn, file, chunk)
         }
     }
 
