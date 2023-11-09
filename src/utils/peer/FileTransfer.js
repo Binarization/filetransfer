@@ -1,7 +1,7 @@
 import localForage from 'localforage'
 import { Role } from "./Enums"
 
-export const numOfSubConns = 32
+export const numOfSubConns = 24
 
 export class FileTransfer {
     constructor({
@@ -36,7 +36,7 @@ export class FileTransfer {
         // 清空localForage
         localForage.clear()
 
-        while(this.role === Role.INITIATOR && !this.isSubConnsReady()) {
+        if(this.role === Role.INITIATOR) {
             this.createSubConn()
         }
     }
@@ -50,7 +50,7 @@ export class FileTransfer {
         conn.fileReaderWorker = new Worker(new URL('@/workers/FileReader.worker.js', import.meta.url))
         this.subConns.push(conn)
         this.idleSubConns.push(conn)
-        this.updateConnecting(!this.isSubConnsReady())
+        this.updateConnecting(!this.isSubConnsReady(), `${this.subConns ? this.subConns.length : 0}/${this.numOfSubConns}`)
     }
 
     isSubConnsReady() {
@@ -74,6 +74,9 @@ export class FileTransfer {
     handleConnection(conn) {
         conn.on('open', () => {
             this.appendSubConn(conn)
+            if(this.role === Role.INITIATOR && !this.isSubConnsReady()) {
+                this.createSubConn()
+            }
             conn.on('data', (data) => this.handleData(conn, data))
         })
     }

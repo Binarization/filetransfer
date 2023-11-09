@@ -137,7 +137,7 @@ export class MainConnection {
             }
         } else {
             // 如果没有连接，直接接受连接
-            this.updateConnecting(true)
+            this.updateConnecting(true, `0/${numOfSubConns}`)
             this.conn = conn
 
             this.conn.on('open', () => {

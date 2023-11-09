@@ -44,7 +44,7 @@
             </div>
         </div>
         <div class="content-container">
-            <a-spin :spinning="connecting" tip="正在建立连接...">
+            <a-spin :spinning="connecting" :tip="`正在建立连接(${connectingProgress})...`">
                 <div class="container">
                     <span class="container-title">发送文件</span>
                     <div v-if="mainConnection.peerInfo === null" class="placeholder">等待加入会话</div>
@@ -115,6 +115,7 @@ export default {
                 receive: [],
             },
             connecting: false,
+            connectingProgress: "0%",
         }
     },
     computed: {
@@ -166,9 +167,10 @@ export default {
         handleGoHome() {
             this.$router.push('/')
         },
-        updateConnecting(value) {
+        updateConnecting(value, progress) {
             this.$nextTick(() => {
                 this.connecting = value
+                this.connectingProgress = progress
             })
         },
         updateFileListRecv({uid, status, percent, file, thumbUrl} = {}) {
