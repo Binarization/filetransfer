@@ -9,7 +9,7 @@ import DeviceInfo from '@/utils/DeviceInfo'
 import PeerJSError from './PeerJSError'
 
 export class MainConnection {
-    constructor(fileList, updateConnecting, updateFileListRecv) {
+    constructor(fileList, updateConnecting, updateFileListRecv, updateTransferSpeed) {
         this.role = Role.INITIATOR
         this.peer = new Peer({ debug: 2 })
         this.peerId = ''
@@ -20,6 +20,7 @@ export class MainConnection {
         this.lastHeartbeat = -1
         this.updateConnecting = updateConnecting
         this.updateFileListRecv = updateFileListRecv
+        this.updateTransferSpeed = updateTransferSpeed
 
         this.peer.on('error', this.handlePeerJSError.bind(this))
     }
@@ -184,7 +185,8 @@ export class MainConnection {
                     numOfSubConns: detail.fileTransfer.numOfSubConns,
                     fileList: this.fileList,
                     updateConnecting: this.updateConnecting,
-                    updateFileListRecv: this.updateFileListRecv
+                    updateFileListRecv: this.updateFileListRecv,
+                    updateTransferSpeed: this.updateTransferSpeed
                 })
 
                 // 接入端回复握手
@@ -236,6 +238,12 @@ export class MainConnection {
             // 没有连接，不发送心跳
             return
         }
+        if (!this.conn._open) {
+            // 连接已关闭，退出传输页面
+            message.error('连接已断开')
+            this.close()
+            return
+        }
         if (this.lastHeartbeat != -1 && Date.now() - this.lastHeartbeat > 15000) {
             // 15秒未收到心跳，断开连接
             message.error('咦，好像断开连接了')
@@ -243,6 +251,9 @@ export class MainConnection {
             return
         }
         this.send('ping')
+        if (this.fileTransfer) {
+            this.fileTransfer.checkSubConnsAlive()
+        }
         setTimeout(this.heartbeat.bind(this), 5000)
     }
 
@@ -251,6 +262,10 @@ export class MainConnection {
     }
     
     tryReconnect() {
+        if(this.peer.destroyed) {
+            this.goHome()
+            return Promise.resolve()
+        }
         return new Promise((resolve, reject) => {
             let retryCount = 0
             let retryInterval = setInterval(() => {

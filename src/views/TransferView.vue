@@ -7,7 +7,7 @@
                 </template>
                 {{ mainConnection.role == Role.INITIATOR ? '关闭会话' : '断开连接' }}
             </a-button>
-            <div v-if="mainConnection.role == Role.INITIATOR" class="container">
+            <div v-if="mainConnection.role == Role.INITIATOR && mainConnection.peerInfo === null" class="container">
                 <span class="container-title">加入链接</span>
                 <div class="qr-container">
                     <a-qrcode :value="getQRCodeLink" :status="isQRCodeLoading" />
@@ -23,10 +23,9 @@
                     </a-input-group>
                 </div>
             </div>
-            <div class="container">
+            <div v-if="mainConnection.peerInfo" class="container">
                 <span class="container-title">当前连接</span>
-                <div v-if="mainConnection.peerInfo === null" class="placeholder">暂无连接</div>
-                <div v-else class="peer-info-container">
+                <div class="peer-info-container">
                     <div v-if="mainConnection.role == Role.INITIATOR" class="disconnect-container" @click="mainConnection.close()">
                         <DisconnectOutlined />
                         断开当前连接
@@ -41,10 +40,18 @@
                         {{ mainConnection.peerInfo.name[0] }}的&zwnj;{{ mainConnection.peerInfo.name[1] }}
                     </div>
                 </div>
+                <div class="connection-info">
+                    <span class="title">当前连接数：</span>
+                    {{ connectingProgress}}
+                </div>
+                <div class="connection-info">
+                    <span class="title">当前传输速率：</span>
+                    {{ transferSpeed }}
+                </div>
             </div>
         </div>
         <div class="content-container">
-            <a-spin :spinning="connecting" :tip="`正在建立连接(${connectingProgress})...`">
+            <a-spin :spinning="connecting" tip="正在初始化连接...">
                 <div class="container">
                     <span class="container-title">发送文件</span>
                     <div v-if="mainConnection.peerInfo === null" class="placeholder">等待加入会话</div>
@@ -116,6 +123,7 @@ export default {
             },
             connecting: false,
             connectingProgress: "0%",
+            transferSpeed: "0 MB/s", 
         }
     },
     computed: {
@@ -138,7 +146,7 @@ export default {
         },
     },
     created() {
-        this.mainConnection = new MainConnection(this.fileList, this.updateConnecting, this.updateFileListRecv)
+        this.mainConnection = new MainConnection(this.fileList, this.updateConnecting, this.updateFileListRecv, this.updateTransferSpeed)
     },
     mounted() {
         // 关闭先前未关闭会话
@@ -171,6 +179,11 @@ export default {
             this.$nextTick(() => {
                 this.connecting = value
                 this.connectingProgress = progress
+            })
+        },
+        updateTransferSpeed(value) {
+            this.$nextTick(() => {
+                this.transferSpeed = value
             })
         },
         updateFileListRecv({uid, status, percent, file, thumbUrl} = {}) {
@@ -368,6 +381,17 @@ export default {
         width: min-content;
         word-break: keep-all;
         padding-left: 0.6em;
+    }
+}
+
+.sidebar-container > .container > .connection-info {
+    margin: 5px 0 0 10px;
+    color: rgb(22 119 255);
+    font-size: 14px;
+    font-weight: bold;
+    .title {
+        color: black;
+        font-weight: normal;
     }
 }
 

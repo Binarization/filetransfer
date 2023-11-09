@@ -13,6 +13,7 @@ export class FileTransfer {
         fileList = null,
         updateConnecting = null,
         updateFileListRecv = null,
+        updateTransferSpeed = null,
     } = {}){
         this.chunkSize = 4 * 1024 * 1024
         this.role = role
@@ -25,6 +26,7 @@ export class FileTransfer {
         this.fileList = fileList
         this.updateConnecting = updateConnecting
         this.updateFileListRecv = updateFileListRecv
+        this.updateTransferSpeed = updateTransferSpeed
 
         this.preSendFileList = {}
         this.sendingFileList = []
@@ -33,16 +35,22 @@ export class FileTransfer {
         this.transferringChunks = {}
         this.transferringConns = {}
 
+        this.recentChunkSizes = []
+
         // 清空localForage
         localForage.clear()
 
         if(this.role === Role.INITIATOR) {
             this.createSubConn()
         }
+        
+        this.calcAverageTransferSpeed()
     }
 
     createSubConn() {
-        this.handleConnection(this.peer.connect(this.mainConn.peer, { reliable: true }))
+        if(this.mainConn._open) {
+            this.handleConnection(this.peer.connect(this.mainConn.peer, { reliable: true }))
+        }
     }
 
     appendSubConn(conn) {
@@ -50,7 +58,8 @@ export class FileTransfer {
         conn.fileReaderWorker = new Worker(new URL('@/workers/FileReader.worker.js', import.meta.url))
         this.subConns.push(conn)
         this.idleSubConns.push(conn)
-        this.updateConnecting(!this.isSubConnsReady(), `${this.subConns ? this.subConns.length : 0}/${this.numOfSubConns}`)
+        this.checkQueue()
+        this.updateConnecting(this.subConns.length < 1 && this.subConns[0]._open, `${this.subConns.length}/${this.numOfSubConns}`)
     }
 
     isSubConnsReady() {
@@ -59,6 +68,42 @@ export class FileTransfer {
 
     isTransferring() {
         return this.sendingFileList.length > 0 || Object.keys(this.receivingFileList).length > 0
+    }
+
+    checkSubConnsAlive() {
+        if(this.mainConn._open) {
+            this.subConns.forEach(conn => {
+                if(!conn._open) {
+                    console.error('subconn closed unexpectedly: ', conn)
+                    conn.close()
+                    conn.fileReaderWorker.terminate()
+                    this.subConns.splice(this.subConns.indexOf(conn), 1)
+                    this.idleSubConns.splice(this.idleSubConns.indexOf(conn), 1)
+                    this.updateConnecting(this.subConns.length < 1 && this.subConns[0]._open, `${this.subConns.length}/${this.numOfSubConns}`)
+                    this.createSubConn()
+                }
+            })
+        }
+    }
+
+    recordChunkSize(size) {
+        this.recentChunkSizes.push({
+            time: Date.now(),
+            size,
+        })
+    }
+
+    // 计算最近10秒的平均传输速度(MB/s)
+    calcAverageTransferSpeed() {
+        // 先清除超过10秒的记录
+        this.recentChunkSizes = this.recentChunkSizes.filter(record => Date.now() - record.time < 10000)
+
+        let totalSize = 0
+        this.recentChunkSizes.forEach(record => {
+            totalSize += record.size
+        })
+        this.updateTransferSpeed(`${(totalSize / 10 / 1024 / 1024).toFixed(2)} MB/s`)
+        setTimeout(this.calcAverageTransferSpeed.bind(this), 1000)
     }
 
     close() {
@@ -249,6 +294,11 @@ export class FileTransfer {
 
     handleDone(detail) {
         const { conn, file, chunk } = this.transferringChunks[detail.id]
+
+        // 记录传输事件
+        this.recordChunkSize(chunk.blob.size)
+
+        // 更新进度
         file.sended += chunk.blob.size
         file.file.percent = parseInt(file.sended / file.file.size * 100)
         file.onProgress(file.file)
@@ -256,6 +306,7 @@ export class FileTransfer {
             file.file.status = 'done'
             file.onSuccess(file.file)
         }
+
         delete this.transferringChunks[detail.id]
         delete this.transferringConns[conn.connectionId]
         this.idleSubConns.push(conn)
@@ -294,9 +345,10 @@ export class FileTransfer {
 
     async handleChunk(uid, index, uint8Array) {
         const chunkId = `${uid}-${index}`
-        console.time(`save chunk ${chunkId}`)
         await localForage.setItem(chunkId, uint8Array)
-        console.timeEnd(`save chunk ${chunkId}`)
+
+        // 记录传输事件
+        this.recordChunkSize(uint8Array.byteLength)
 
         // 更新进度
         let received = this.receivingFileList[uid].received
