@@ -12,6 +12,7 @@ export class MainConnection {
     constructor(fileList, updateConnecting, updateFileListRecv, updateTransferSpeed) {
         this.role = Role.INITIATOR
         this.peer = new Peer({ debug: 2 })
+        this.initiatorPeerId = ''
         this.peerId = ''
         this.peerInfo = null
         this.conn = null
@@ -26,6 +27,7 @@ export class MainConnection {
     }
 
     init(initiatorPeerId) {
+        this.initiatorPeerId = initiatorPeerId
         if (!initiatorPeerId) {
             // 发起端
             this.role = Role.INITIATOR
@@ -165,6 +167,16 @@ export class MainConnection {
                     this.goHome()
                 }
             })
+
+            // 监听conn的peerConnection.connectionState，如果是failed，就重新创建
+            conn.peerConnection.addEventListener('connectionstatechange', () => {
+                if(conn.peerConnection.connectionState === 'failed') {
+                    console.error('handleConnection: subconn failed: ', conn)
+                    if(this.role == Role.CONNECTOR) {
+                        this.handleConnection(this.peer.connect(this.initiatorPeerId, { reliable: true, serialization: 'json' }))
+                    }
+                }
+            })
         }
     }
 
@@ -251,9 +263,6 @@ export class MainConnection {
             return
         }
         this.send('ping')
-        if (this.fileTransfer) {
-            this.fileTransfer.checkSubConnsAlive()
-        }
         setTimeout(this.heartbeat.bind(this), 5000)
     }
 

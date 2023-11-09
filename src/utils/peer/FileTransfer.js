@@ -16,6 +16,7 @@ export class FileTransfer {
         updateTransferSpeed = null,
     } = {}){
         this.chunkSize = 4 * 1024 * 1024
+        this.closed = false
         this.role = role
         this.peer = peer
         this.mainConn = mainConn
@@ -41,14 +42,14 @@ export class FileTransfer {
         localForage.clear()
 
         if(this.role === Role.INITIATOR) {
-            this.createSubConn()
+            this.createSubConnIfNeeded()
         }
         
         this.calcAverageTransferSpeed()
     }
 
-    createSubConn() {
-        if(this.mainConn._open) {
+    createSubConnIfNeeded() {
+        if(this.role === Role.INITIATOR && !this.isSubConnsReady() && this.mainConn._open) {
             this.handleConnection(this.peer.connect(this.mainConn.peer, { reliable: true }))
         }
     }
@@ -68,22 +69,6 @@ export class FileTransfer {
 
     isTransferring() {
         return this.sendingFileList.length > 0 || Object.keys(this.receivingFileList).length > 0
-    }
-
-    checkSubConnsAlive() {
-        if(this.mainConn._open) {
-            this.subConns.forEach(conn => {
-                if(!conn._open) {
-                    console.error('subconn closed unexpectedly: ', conn)
-                    conn.close()
-                    conn.fileReaderWorker.terminate()
-                    this.subConns.splice(this.subConns.indexOf(conn), 1)
-                    this.idleSubConns.splice(this.idleSubConns.indexOf(conn), 1)
-                    this.updateConnecting(this.subConns.length < 1 && this.subConns[0]._open, `${this.subConns.length}/${this.numOfSubConns}`)
-                    this.createSubConn()
-                }
-            })
-        }
     }
 
     recordChunkSize(size) {
@@ -107,6 +92,7 @@ export class FileTransfer {
     }
 
     close() {
+        this.closed = true
         this.subConns.forEach(conn => {
             conn.close()
             conn.fileReaderWorker.terminate()
@@ -119,10 +105,28 @@ export class FileTransfer {
     handleConnection(conn) {
         conn.on('open', () => {
             this.appendSubConn(conn)
-            if(this.role === Role.INITIATOR && !this.isSubConnsReady()) {
-                this.createSubConn()
-            }
+            this.createSubConnIfNeeded()
             conn.on('data', (data) => this.handleData(conn, data))
+        })
+
+        conn.on('close', () => {
+            if(!this.closed) {
+                console.error('subconn closed unexpectedly: ', conn)
+                if(this.fileReaderWorker) conn.fileReaderWorker.terminate()
+                this.subConns.splice(this.subConns.indexOf(conn), 1)
+                this.idleSubConns.splice(this.idleSubConns.indexOf(conn), 1)
+                this.updateConnecting(this.subConns.length < 1 && this.subConns[0]._open, `${this.subConns.length}/${this.numOfSubConns}`)
+                this.createSubConnIfNeeded()
+            }
+        })
+
+        // 监听conn的peerConnection.connectionState，如果是failed，就重新创建
+        conn.peerConnection.addEventListener('connectionstatechange', () => {
+            if(conn.peerConnection.connectionState === 'failed') {
+                console.error('handleConnection: subconn failed: ', conn)
+                // 重新创建
+                this.createSubConnIfNeeded()
+            }
         })
     }
 
