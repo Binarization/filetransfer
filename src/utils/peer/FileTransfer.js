@@ -1,7 +1,7 @@
 import localForage from 'localforage'
 import { Role } from "./Enums"
 
-export const numOfSubConns = 24
+export const numOfSubConns = 64
 
 export class FileTransfer {
     constructor({
@@ -51,12 +51,17 @@ export class FileTransfer {
 
     createSubConnIfNeeded() {
         if(this.role === Role.INITIATOR && !this.isSubConnsReady() && this.mainConn._open) {
-            if(this.numOfSubConns - this.numOfPreSubConns > 2) {
-                console.log('createSubConnIfNeeded: ', this.numOfSubConns, this.numOfPreSubConns)
-                this.numOfPreSubConns++
-                console.log('createSubConnIfNeeded: this.numOfPreSubConns++')
-                this.handleConnection(this.peer.connect(this.mainConn.peer, { reliable: true }))
+            const createSubConnRecurssion = (num) => {
+                if(num == 0) return
+                if(this.numOfSubConns - this.numOfPreSubConns > 2) {
+                    console.log('createSubConnIfNeeded: ', this.numOfSubConns, this.numOfPreSubConns)
+                    this.numOfPreSubConns++
+                    console.log('createSubConnIfNeeded: this.numOfPreSubConns++')
+                    this.handleConnection(this.peer.connect(this.mainConn.peer, { reliable: true }))
+                }
+                return createSubConnRecurssion(num - 1)
             }
+            createSubConnRecurssion(3)
             this.numOfPreSubConns++
             console.log('createSubConnIfNeeded: this.numOfPreSubConns++')
             this.handleConnection(this.peer.connect(this.mainConn.peer, { reliable: true }))
@@ -252,6 +257,8 @@ export class FileTransfer {
         this.sendingFileList.push(this.preSendFileList[detail.uid])
         delete this.preSendFileList[detail.uid]
         this.checkQueue()
+        
+        console.time(`send(conn: ${this.numOfPreSubConns}, chunkSize: ${this.chunkSize}) ` + detail.uid)
     }
 
     async checkQueue() {
@@ -322,6 +329,7 @@ export class FileTransfer {
         file.file.percent = parseInt(file.sended / file.file.size * 100)
         file.onProgress(file.file)
         if(file.sended === file.file.size) {
+            console.timeEnd(`send(conn: ${this.numOfPreSubConns}, chunkSize: ${this.chunkSize}) ` + file.file.uid)
             file.file.status = 'done'
             file.onSuccess(file.file)
         }
