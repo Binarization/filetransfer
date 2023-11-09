@@ -14,7 +14,7 @@ export class FileTransfer {
         updateConnecting = null,
         updateFileListRecv = null,
     } = {}){
-        this.chunkSize = 8 * 1024 * 1024
+        this.chunkSize = 4 * 1024 * 1024
         this.role = role
         this.peer = peer
         this.mainConn = mainConn
