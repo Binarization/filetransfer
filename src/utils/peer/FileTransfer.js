@@ -23,6 +23,7 @@ export class FileTransfer {
         this.mainConnSend = mainConnSend
         this.subConns = []
         this.idleSubConns = []
+        this.numOfPreSubConns = 0
         this.numOfSubConns = numOfSubConns
         this.fileList = fileList
         this.updateConnecting = updateConnecting
@@ -50,6 +51,14 @@ export class FileTransfer {
 
     createSubConnIfNeeded() {
         if(this.role === Role.INITIATOR && !this.isSubConnsReady() && this.mainConn._open) {
+            if(this.numOfSubConns - this.numOfPreSubConns > 2) {
+                console.log('createSubConnIfNeeded: ', this.numOfSubConns, this.numOfPreSubConns)
+                this.numOfPreSubConns++
+                console.log('createSubConnIfNeeded: this.numOfPreSubConns++')
+                this.handleConnection(this.peer.connect(this.mainConn.peer, { reliable: true }))
+            }
+            this.numOfPreSubConns++
+            console.log('createSubConnIfNeeded: this.numOfPreSubConns++')
             this.handleConnection(this.peer.connect(this.mainConn.peer, { reliable: true }))
         }
     }
@@ -64,7 +73,7 @@ export class FileTransfer {
     }
 
     isSubConnsReady() {
-        return this.subConns.length === this.numOfSubConns
+        return this.numOfPreSubConns === this.numOfSubConns
     }
 
     isTransferring() {
@@ -110,20 +119,26 @@ export class FileTransfer {
         })
 
         conn.on('close', () => {
-            if(!this.closed && this.mainConn._open) {
-                console.error('subconn closed unexpectedly: ', conn)
-                if(this.fileReaderWorker) conn.fileReaderWorker.terminate()
-                this.subConns.splice(this.subConns.indexOf(conn), 1)
-                this.idleSubConns.splice(this.idleSubConns.indexOf(conn), 1)
-                this.updateConnecting(this.subConns.length < 1 && this.subConns[0]._open, `${this.subConns.length}/${this.numOfSubConns}`)
-                this.createSubConnIfNeeded()
-            }
+            this.numOfPreSubConns--
+            if(this.fileReaderWorker) conn.fileReaderWorker.terminate()
+            this.subConns.splice(this.subConns.indexOf(conn), 1)
+            this.idleSubConns.splice(this.idleSubConns.indexOf(conn), 1)
+
+            // 延时一秒检查是否需要重新创建，避免对方关闭连接未来得及更新closed状态
+            setTimeout(() => {
+                if(!this.closed && this.mainConn._open && this.subConns.length <= this.numOfSubConns) {
+                    console.error('subconn closed unexpectedly: ', conn)
+                    this.updateConnecting(this.subConns.length < 1 && this.subConns[0]._open, `${this.subConns.length}/${this.numOfSubConns}`)
+                    this.createSubConnIfNeeded()
+                }
+            }, 1000)
         })
 
         // 监听conn的peerConnection.connectionState，如果是failed，就重新创建
         conn.peerConnection.addEventListener('connectionstatechange', () => {
             if(conn.peerConnection.connectionState === 'failed') {
                 console.error('handleConnection: subconn failed: ', conn)
+                this.numOfPreSubConns--
                 // 重新创建
                 this.createSubConnIfNeeded()
             }
@@ -240,7 +255,7 @@ export class FileTransfer {
     }
 
     async checkQueue() {
-        console.log('checkQueue: ', this.idleSubConns.length, this.sendingFileList.length)
+        console.log('checkQueue: ', this.idleSubConns.length, this.sendingFileList.length, this.sendingFileList)
         while(this.idleSubConns.length > 0 && this.sendingFileList.length > 0) {
             let conn = this.idleSubConns.shift()
             let file = this.sendingFileList[0]
