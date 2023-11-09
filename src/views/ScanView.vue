@@ -50,7 +50,7 @@ export default {
     },
     methods: {
         goHome() {
-            this.$router.push('/')
+            this.$router.replace('/')
         },
         async initCamera() {
             try {
@@ -62,7 +62,9 @@ export default {
                     message.error('没有找到摄像头')
                     return
                 }
-                this.selectedDeviceId = this.devices[0].deviceId
+                // 尝试找到后置摄像头，如果没有则使用第一个摄像头
+                const rearCamera = this.devices.find(device => device.label.toLowerCase().includes('back'))
+                this.selectedDeviceId = rearCamera ? rearCamera.deviceId : this.devices[0].deviceId
                 await this.switchCamera()
             } catch (error) {
                 console.error(error)
