@@ -171,7 +171,8 @@ export class MainConnection {
             // 监听conn的peerConnection.connectionState，如果是failed，就重新创建
             conn.peerConnection.addEventListener('connectionstatechange', () => {
                 if(conn.peerConnection.connectionState === 'failed') {
-                    console.error('handleConnection: subconn failed: ', conn)
+                    console.error('handleConnection: mainconn failed: ', conn)
+                    this.conn = null
                     if(this.role == Role.CONNECTOR) {
                         this.handleConnection(this.peer.connect(this.initiatorPeerId, { reliable: true, serialization: 'json' }))
                     }
