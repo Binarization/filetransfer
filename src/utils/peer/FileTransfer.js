@@ -110,7 +110,7 @@ export class FileTransfer {
         })
 
         conn.on('close', () => {
-            if(!this.closed) {
+            if(!this.closed && this.mainConn._open) {
                 console.error('subconn closed unexpectedly: ', conn)
                 if(this.fileReaderWorker) conn.fileReaderWorker.terminate()
                 this.subConns.splice(this.subConns.indexOf(conn), 1)
