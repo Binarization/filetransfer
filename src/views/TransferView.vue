@@ -220,6 +220,16 @@ export default {
                             }
                         })
                         break
+            
+                    case PeerJSError.PeerErrorType.UnavailableID:
+                        this.$router.replace({
+                                name: 'warning',
+                                params: {
+                                    title: '连接已失效',
+                                    msg: PeerJSError.getPeerJSErrorMsg(err)
+                                }
+                            })
+                        break
 
                     default:
                         message.error(PeerJSError.getPeerJSErrorMsg(err))
