@@ -170,10 +170,10 @@ export default {
         goHome() {
             // 关闭会话
             this.mainConnection.destroy()
-            this.$router.push('/')
+            this.$router.replace('/')
         },
         handleGoHome() {
-            this.$router.push('/')
+            this.$router.replace('/')
         },
         updateConnecting(value, progress) {
             this.$nextTick(() => {

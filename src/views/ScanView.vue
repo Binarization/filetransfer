@@ -96,7 +96,7 @@ export default {
                     // message.info(`扫描结果：${result[i].rawValue}`)
                     const match = result[i].rawValue.match(/\/transfer\/([0-9a-f-]{36})/)
                     if (match) {
-                        this.$router.push(`/transfer/${match[1]}`)
+                        this.$router.replace(`/transfer/${match[1]}`)
                     }
                     return
                 }
