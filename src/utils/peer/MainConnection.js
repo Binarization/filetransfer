@@ -150,10 +150,10 @@ export class MainConnection {
                 if (this.role == Role.INITIATOR) {
                     // 发起握手
                     this.handshake()
-
-                    // 发起首次心跳
-                    this.heartbeat()
                 }
+
+                // 发起首次心跳
+                this.heartbeat()
             })
 
             // 监听连接关闭
@@ -262,7 +262,9 @@ export class MainConnection {
             this.close()
             return
         }
-        this.send('ping')
+        if(this.role == Role.INITIATOR) {
+            this.send('ping')
+        }
         setTimeout(this.heartbeat.bind(this), 5000)
     }
 
