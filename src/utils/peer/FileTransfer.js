@@ -1,7 +1,7 @@
 import localForage from 'localforage'
 import { Role } from "./Enums"
 
-export const numOfSubConns = 12
+export const numOfSubConns = 16
 
 export class FileTransfer {
     constructor({
@@ -14,7 +14,7 @@ export class FileTransfer {
         updateConnecting = null,
         updateFileListRecv = null,
     } = {}){
-        this.chunkSize = 16 * 1024 * 1024
+        this.chunkSize = 8 * 1024 * 1024
         this.role = role
         this.peer = peer
         this.mainConn = mainConn
