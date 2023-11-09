@@ -281,6 +281,12 @@ export class MainConnection {
         return new Promise((resolve, reject) => {
             let retryCount = 0
             let retryInterval = setInterval(() => {
+                if(this.peer.destroyed) {
+                    console.log('tryReconnect: peer destroyed')
+                    clearInterval(retryInterval)
+                    resolve()
+                    return
+                }
                 if (!this.peer.disconnected) {
                     console.log('tryReconnect: reconnected')
                     clearInterval(retryInterval)
