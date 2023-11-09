@@ -1,7 +1,7 @@
 import localForage from 'localforage'
 import { Role } from "./Enums"
 
-export const numOfSubConns = 16
+export const numOfSubConns = 32
 
 export class FileTransfer {
     constructor({
@@ -36,7 +36,7 @@ export class FileTransfer {
         // 清空localForage
         localForage.clear()
 
-        if(this.role === Role.INITIATOR) {
+        while(this.role === Role.INITIATOR && !this.isSubConnsReady()) {
             this.createSubConn()
         }
     }
@@ -74,9 +74,6 @@ export class FileTransfer {
     handleConnection(conn) {
         conn.on('open', () => {
             this.appendSubConn(conn)
-            if(this.role === Role.INITIATOR && !this.isSubConnsReady()) {
-                this.createSubConn()
-            }
             conn.on('data', (data) => this.handleData(conn, data))
         })
     }
