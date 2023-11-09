@@ -1,7 +1,7 @@
 import localForage from 'localforage'
 import { Role } from "./Enums"
 
-export const numOfSubConns = 64
+export const numOfSubConns = 32
 
 export class FileTransfer {
     constructor({
@@ -51,17 +51,12 @@ export class FileTransfer {
 
     createSubConnIfNeeded() {
         if(this.role === Role.INITIATOR && !this.isSubConnsReady() && this.mainConn._open) {
-            const createSubConnRecurssion = (num) => {
-                if(num == 0) return
-                if(this.numOfSubConns - this.numOfPreSubConns > 2) {
-                    console.log('createSubConnIfNeeded: ', this.numOfSubConns, this.numOfPreSubConns)
-                    this.numOfPreSubConns++
-                    console.log('createSubConnIfNeeded: this.numOfPreSubConns++')
-                    this.handleConnection(this.peer.connect(this.mainConn.peer, { reliable: true }))
-                }
-                return createSubConnRecurssion(num - 1)
+            if(this.numOfSubConns - this.numOfPreSubConns > 2) {
+                console.log('createSubConnIfNeeded: ', this.numOfSubConns, this.numOfPreSubConns)
+                this.numOfPreSubConns++
+                console.log('createSubConnIfNeeded: this.numOfPreSubConns++')
+                this.handleConnection(this.peer.connect(this.mainConn.peer, { reliable: true }))
             }
-            createSubConnRecurssion(3)
             this.numOfPreSubConns++
             console.log('createSubConnIfNeeded: this.numOfPreSubConns++')
             this.handleConnection(this.peer.connect(this.mainConn.peer, { reliable: true }))
@@ -262,7 +257,7 @@ export class FileTransfer {
     }
 
     async checkQueue() {
-        console.log('checkQueue: ', this.idleSubConns.length, this.sendingFileList.length, this.sendingFileList)
+        console.log('checkQueue: ', this.idleSubConns.length, this.sendingFileList.length, this.transferringChunks)
         while(this.idleSubConns.length > 0 && this.sendingFileList.length > 0) {
             let conn = this.idleSubConns.shift()
             let file = this.sendingFileList[0]
@@ -345,6 +340,7 @@ export class FileTransfer {
         conn.fileReaderWorker.onmessage = (e) => {
             switch(typeof(e.data)) {
                 case 'object':
+                    console.timeEnd(`send chunk: ${id} `)
                     conn.send({
                         type: 'chunk',
                         detail: {
@@ -366,6 +362,7 @@ export class FileTransfer {
                     break
                 }
         }
+        console.time(`send chunk: ${id} `)
         conn.fileReaderWorker.postMessage(chunk.blob)
         this.checkQueue()
     }
