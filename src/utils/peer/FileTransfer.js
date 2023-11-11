@@ -98,7 +98,9 @@ export class FileTransfer {
             totalSize += record.size
         })
         this.updateTransferSpeed(`${(totalSize / 10 / 1024 / 1024).toFixed(2)} MB/s`)
-        setTimeout(this.calcAverageTransferSpeed.bind(this), 1000)
+        if(this.closed) {
+            setTimeout(this.calcAverageTransferSpeed.bind(this), 1000)
+        }
     }
 
     close() {
@@ -188,6 +190,7 @@ export class FileTransfer {
                 if(this.receivingFileList[detail.uid]) {
                     this.handleChunk(detail.uid, detail.index, detail.uint8Array).then(() => {
                         this.sendDone(conn, `${detail.uid}-${detail.index}`)
+                        this.idleSubConns.push(conn)
                         delete this.transferringChunks[`${detail.uid}-${detail.index}`]
                         delete this.transferringConns[conn.connectionId]
 
@@ -341,6 +344,7 @@ export class FileTransfer {
     }
 
     handleDone(detail) {
+        console.timeEnd(`send chunk: ${detail.id} `)
         const { conn, file, chunk } = this.transferringChunks[detail.id]
 
         // 记录传输事件
@@ -367,7 +371,6 @@ export class FileTransfer {
         conn.fileReaderWorker.onmessage = (e) => {
             switch(typeof(e.data)) {
                 case 'object':
-                    console.timeEnd(`send chunk: ${id} `)
                     conn.send({
                         type: 'chunk',
                         detail: {
@@ -376,6 +379,7 @@ export class FileTransfer {
                             uint8Array: e.data,
                         }
                     })
+                    console.log('send chunk: chunker', conn.chunker)
                     break
                 
                 case 'string':
