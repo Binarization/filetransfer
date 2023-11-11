@@ -98,7 +98,7 @@ export class FileTransfer {
             totalSize += record.size
         })
         this.updateTransferSpeed(`${(totalSize / 10 / 1024 / 1024).toFixed(2)} MB/s`)
-        if(this.closed) {
+        if(!this.closed) {
             setTimeout(this.calcAverageTransferSpeed.bind(this), 1000)
         }
     }
