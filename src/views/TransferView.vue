@@ -51,7 +51,7 @@
             </div>
         </div>
         <div class="content-container">
-            <a-spin :spinning="connecting" tip="正在初始化连接...">
+            <a-spin :spinning="connecting" :tip="connectingMsg">
                 <div class="container">
                     <span class="container-title">发送文件</span>
                     <div v-if="mainConnection.peerInfo === null" class="placeholder">等待加入会话</div>
@@ -123,6 +123,7 @@ export default {
             },
             connecting: false,
             connectingProgress: "0%",
+            connectingMsg: "",
             transferSpeed: "0 MB/s", 
         }
     },
@@ -175,10 +176,11 @@ export default {
         handleGoHome() {
             this.$router.replace('/')
         },
-        updateConnecting(value, progress) {
+        updateConnecting(value, progress, msg) {
             this.$nextTick(() => {
-                this.connecting = value
-                this.connectingProgress = progress
+                if(value !== undefined) this.connecting = value
+                if(progress) this.connectingProgress = progress
+                if(msg) this.connectingMsg = msg
             })
         },
         updateTransferSpeed(value) {

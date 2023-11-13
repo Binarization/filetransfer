@@ -140,7 +140,7 @@ export class MainConnection {
             }
         } else {
             // 如果没有连接，直接接受连接
-            this.updateConnecting(true, `0/${numOfSubConns}`)
+            this.updateConnecting(true, `0/${numOfSubConns}`, '正在初始化连接...')
             this.conn = conn
 
             this.conn.on('open', () => {
@@ -197,9 +197,10 @@ export class MainConnection {
                     mainConnSend: this.send.bind(this),
                     numOfSubConns: detail.fileTransfer.numOfSubConns,
                     fileList: this.fileList,
+                    goHome: this.goHome,
                     updateConnecting: this.updateConnecting,
                     updateFileListRecv: this.updateFileListRecv,
-                    updateTransferSpeed: this.updateTransferSpeed
+                    updateTransferSpeed: this.updateTransferSpeed,
                 })
 
                 // 接入端回复握手
@@ -230,6 +231,13 @@ export class MainConnection {
 
             case 'presendReady':
                 this.fileTransfer.handlePresendReady(detail)
+                break
+
+            // 网络环境评估
+            case 'benchmarkResult':
+                this.fileTransfer.speedBenchmark.result = detail.result
+                this.fileTransfer.speedBenchmark.showResult(detail.speed, detail.failedPercent)
+                this.updateConnecting(false)
                 break
 
             // 拒绝连接

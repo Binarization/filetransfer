@@ -1,5 +1,6 @@
 import localForage from 'localforage'
 import { Role } from "./Enums"
+import { SpeedBenchmark } from './SpeedBenchmark'
 
 export const numOfSubConns = 24
 
@@ -11,6 +12,7 @@ export class FileTransfer {
         mainConnSend = null,
         numOfSubConns = numOfSubConns, 
         fileList = null,
+        goHome = null,
         updateConnecting = null,
         updateFileListRecv = null,
         updateTransferSpeed = null,
@@ -25,7 +27,15 @@ export class FileTransfer {
         this.idleSubConns = []
         this.numOfPreSubConns = 0
         this.numOfSubConns = numOfSubConns
+        this.speedBenchmark = new SpeedBenchmark({
+            role: this.role,
+            mainConn: this.mainConn,
+            createSubConnIfNeeded: this.createSubConnIfNeeded.bind(this),
+            updateConnecting: updateConnecting,
+        })
+
         this.fileList = fileList
+        this.goHome = goHome
         this.updateConnecting = updateConnecting
         this.updateFileListRecv = updateFileListRecv
         this.updateTransferSpeed = updateTransferSpeed
@@ -70,7 +80,19 @@ export class FileTransfer {
         this.subConns.push(conn)
         this.idleSubConns.push(conn)
         this.checkQueue()
-        this.updateConnecting(this.subConns.length < 1 && this.subConns[0]._open, `${this.subConns.length}/${this.numOfSubConns}`)
+        if(this.subConns.length < this.numOfSubConns) {
+            this.updateConnecting(true, `${this.subConns.length}/${this.numOfSubConns}`, `正在建立子连接(${Math.round(this.subConns.length / this.numOfSubConns * 100)}%)...`)
+        } else {
+            if(this.speedBenchmark.result === -1) {
+                this.updateConnecting(true, `${this.subConns.length}/${this.numOfSubConns}`, '正在评估网络质量(0%)...')
+                if(!this.speedBenchmark.running) {
+                    this.speedBenchmark.conns = [...this.subConns]
+                    this.speedBenchmark.run()
+                }
+            } else {
+                this.updateConnecting(false, `${this.subConns.length}/${this.numOfSubConns}`)
+            }
+        }   
     }
 
     isSubConnsReady() {
@@ -105,6 +127,9 @@ export class FileTransfer {
 
     close() {
         this.closed = true
+        if(this.speedBenchmark) {
+            this.speedBenchmark.destroy()
+        }
         this.subConns.forEach(conn => {
             conn.close()
             conn.fileReaderWorker.terminate()
@@ -126,7 +151,7 @@ export class FileTransfer {
             if(this.fileReaderWorker) conn.fileReaderWorker.terminate()
             this.subConns.splice(this.subConns.indexOf(conn), 1)
             this.idleSubConns.splice(this.idleSubConns.indexOf(conn), 1)
-            this.updateConnecting(this.subConns.length < 1 && this.subConns[0]._open, `${this.subConns.length}/${this.numOfSubConns}`)
+            this.updateConnecting(undefined, `${this.subConns.length}/${this.numOfSubConns}`)
 
             // 检查当前文件是否传输完毕
             if(this.transferringChunks[conn.connectionId]) {
@@ -169,6 +194,17 @@ export class FileTransfer {
         console.log('handleData: ', data)
         const { type, detail } = data
         switch(type) {
+            case 'benchmark':
+                conn.send({
+                    type: 'benchmarkDone',
+                })
+                this.speedBenchmark.onConnDone(conn)
+                break
+            
+            case 'benchmarkDone':
+                this.speedBenchmark.onConnDone(conn)
+                break
+
             case 'areYouReady':
                 // 预先将子连接从空闲队列中移除
                 this.idleSubConns.splice(this.idleSubConns.indexOf(conn), 1)
