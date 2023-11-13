@@ -2,7 +2,7 @@ import localForage from 'localforage'
 import { Role } from "./Enums"
 import { SpeedBenchmark } from './SpeedBenchmark'
 
-export const numOfSubConns = 24
+export const NUM_OF_SUB_CONNS = 24
 
 export class FileTransfer {
     constructor({
@@ -12,7 +12,6 @@ export class FileTransfer {
         mainConnSend = null,
         numOfSubConns = numOfSubConns, 
         fileList = null,
-        goHome = null,
         updateConnecting = null,
         updateFileListRecv = null,
         updateTransferSpeed = null,
@@ -26,16 +25,20 @@ export class FileTransfer {
         this.subConns = []
         this.idleSubConns = []
         this.numOfPreSubConns = 0
-        this.numOfSubConns = numOfSubConns
+        this.numOfSubConns = 10
         this.speedBenchmark = new SpeedBenchmark({
             role: this.role,
             mainConn: this.mainConn,
             createSubConnIfNeeded: this.createSubConnIfNeeded.bind(this),
             updateConnecting: updateConnecting,
+            onFinish: () => {
+                // 评估完成，继续创建子连接
+                this.numOfSubConns = NUM_OF_SUB_CONNS
+                this.createSubConnIfNeeded()
+            }
         })
 
         this.fileList = fileList
-        this.goHome = goHome
         this.updateConnecting = updateConnecting
         this.updateFileListRecv = updateFileListRecv
         this.updateTransferSpeed = updateTransferSpeed
@@ -61,6 +64,10 @@ export class FileTransfer {
     }
 
     createSubConnIfNeeded() {
+        if(this.speedBenchmark.running) {
+            // 当前正在评估网络质量，不创建新连接，避免影响评估结果
+            return
+        }
         if(this.role === Role.INITIATOR && !this.isSubConnsReady() && this.mainConn._open) {
             if(this.numOfSubConns - this.numOfPreSubConns > 2) {
                 console.log('createSubConnIfNeeded: ', this.numOfSubConns, this.numOfPreSubConns)
@@ -80,12 +87,12 @@ export class FileTransfer {
         this.subConns.push(conn)
         this.idleSubConns.push(conn)
         this.checkQueue()
-        if(this.subConns.length < this.numOfSubConns) {
+        if(this.subConns.length < this.numOfSubConns && this.speedBenchmark.result === -1) {
             this.updateConnecting(true, `${this.subConns.length}/${this.numOfSubConns}`, `正在建立子连接(${Math.round(this.subConns.length / this.numOfSubConns * 100)}%)...`)
         } else {
             if(this.speedBenchmark.result === -1) {
-                this.updateConnecting(true, `${this.subConns.length}/${this.numOfSubConns}`, '正在评估网络质量(0%)...')
                 if(!this.speedBenchmark.running) {
+                    this.updateConnecting(true, `${this.subConns.length}/${this.numOfSubConns}`, '正在评估网络质量(0%)...')
                     this.speedBenchmark.conns = [...this.subConns]
                     this.speedBenchmark.run()
                 }
@@ -131,7 +138,9 @@ export class FileTransfer {
             this.speedBenchmark.destroy()
         }
         this.subConns.forEach(conn => {
-            conn.close()
+            if(conn._open) {
+                conn.close()
+            }
             conn.fileReaderWorker.terminate()
         })
         
@@ -141,29 +150,32 @@ export class FileTransfer {
 
     handleConnection(conn) {
         conn.on('open', () => {
+            conn.on('data', (data) => this.handleData(conn, data))
             this.appendSubConn(conn)
             this.createSubConnIfNeeded()
-            conn.on('data', (data) => this.handleData(conn, data))
         })
 
         conn.on('close', () => {
             this.numOfPreSubConns--
             if(this.fileReaderWorker) conn.fileReaderWorker.terminate()
-            this.subConns.splice(this.subConns.indexOf(conn), 1)
-            this.idleSubConns.splice(this.idleSubConns.indexOf(conn), 1)
+            this.subConns = this.subConns.filter(c => c.label !== conn.label)
+            this.idleSubConns = this.idleSubConns.filter(c => c.label !== conn.label)
             this.updateConnecting(undefined, `${this.subConns.length}/${this.numOfSubConns}`)
 
+            console.log('subconn closed: check chunk done: ', conn.connectionId, this.transferringConns, !!(this.transferringConns[conn.connectionId]))
             // 检查当前文件是否传输完毕
-            if(this.transferringChunks[conn.connectionId]) {
+            if(this.transferringConns[conn.connectionId]) {
                 const { uid, index } = this.transferringConns[conn.connectionId]
+                const { file, chunk } = this.transferringChunks[`${uid}-${index}`]
 
                 // 重新加入未完成队列
-                const file = this.fileList.send.find(file => file.uid === uid)
-                if(file) {
+                if(this.fileList.send.find(file => file.uid === uid)) {
+                    console.log('subconn closed: chunk readded: ', file)
                     this.unfinishedChunks.push({
                         file, 
-                        chunk: file.slice(index * this.chunkSize, (index + 1) * this.chunkSize),
+                        chunk,
                     })
+                    this.checkQueue()
                 }
 
                 delete this.transferringConns[conn.connectionId]
@@ -314,7 +326,7 @@ export class FileTransfer {
     }
 
     async checkQueue() {
-        console.log('checkQueue: ', this.idleSubConns.length, this.sendingFileList.length, this.transferringChunks)
+        console.log('checkQueue: ', this.idleSubConns.length, this.sendingFileList.length, this.unfinishedChunks.length)
         while(this.idleSubConns.length > 0) {
             if(this.unfinishedChunks.length > 0) {
                 let conn = this.idleSubConns.shift()
@@ -383,6 +395,9 @@ export class FileTransfer {
         console.timeEnd(`send chunk: ${detail.id} `)
         const { conn, file, chunk } = this.transferringChunks[detail.id]
 
+        // 清除超时定时器
+        clearTimeout(conn.timeout)
+
         // 记录传输事件
         this.recordChunkSize(chunk.blob.size)
 
@@ -415,6 +430,10 @@ export class FileTransfer {
                             uint8Array: e.data,
                         }
                     })
+                    conn.timeout = setTimeout(() => {
+                        console.error('send chunk timeout: ', conn, file, chunk)
+                        conn.close()
+                    }, this.speedBenchmark.getTimeoutLength(chunk.blob.size))
                     console.log('send chunk: chunker', conn.chunker)
                     break
                 

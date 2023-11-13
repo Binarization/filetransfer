@@ -45,7 +45,7 @@
                     {{ connectingProgress}}
                 </div>
                 <div class="connection-info">
-                    <span class="title">当前传输速率：</span>
+                    <span class="title">平均速率：</span>
                     {{ transferSpeed }}
                 </div>
             </div>
@@ -177,6 +177,7 @@ export default {
             this.$router.replace('/')
         },
         updateConnecting(value, progress, msg) {
+            console.log('updateConnecting: ', value, progress, msg)
             this.$nextTick(() => {
                 if(value !== undefined) this.connecting = value
                 if(progress) this.connectingProgress = progress
@@ -397,10 +398,13 @@ export default {
 }
 
 .sidebar-container > .container > .connection-info {
-    margin: 5px 0 0 10px;
+    display: flex;
+    justify-content: center;
+    margin-top: 5px;
     color: rgb(22 119 255);
     font-size: 14px;
     font-weight: bold;
+
     .title {
         color: black;
         font-weight: normal;

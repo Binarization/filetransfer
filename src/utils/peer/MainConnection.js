@@ -3,7 +3,7 @@ import { ExclamationCircleOutlined } from '@ant-design/icons-vue'
 import { createVNode } from 'vue';
 import { Peer } from 'peerjs'
 import { isPad, getStuClass, getStuName, getStuId } from '@/utils/07future'
-import { FileTransfer, numOfSubConns } from './FileTransfer'
+import { FileTransfer, NUM_OF_SUB_CONNS } from './FileTransfer'
 import { Role } from './Enums'
 import DeviceInfo from '@/utils/DeviceInfo'
 import PeerJSError from './PeerJSError'
@@ -75,7 +75,7 @@ export class MainConnection {
                     : {})
             },
             fileTransfer: {
-                numOfSubConns: numOfSubConns
+                numOfSubConns: NUM_OF_SUB_CONNS
             }
         })
     }
@@ -96,7 +96,9 @@ export class MainConnection {
     close() {
         this.updateConnecting(false)
         if (this.conn) {
-            this.conn.close()
+            if(this.conn._open) {
+                this.conn.close()
+            }
             this.conn = null
         }
         if (this.fileTransfer) {
@@ -109,6 +111,9 @@ export class MainConnection {
         this.updateConnecting(false)
         if (this.role == Role.CONNECTOR) {
             this.close()
+        }
+        if (this.fileTransfer && this.fileTransfer.speedBenchmark) {
+            this.fileTransfer.speedBenchmark.destroy()
         }
         this.peer.destroy()
     }
@@ -140,7 +145,7 @@ export class MainConnection {
             }
         } else {
             // 如果没有连接，直接接受连接
-            this.updateConnecting(true, `0/${numOfSubConns}`, '正在初始化连接...')
+            this.updateConnecting(true, null, '正在初始化连接...')
             this.conn = conn
 
             this.conn.on('open', () => {
@@ -162,10 +167,8 @@ export class MainConnection {
                 this.conn = null
                 this.peerInfo = null
                 this.lastHeartbeat = -1
-                if (this.role == Role.CONNECTOR) {
-                    message.error('连接已断开')
-                    this.goHome()
-                }
+                message.error('连接已断开')
+                this.goHome()
             })
 
             // 监听conn的peerConnection.connectionState，如果是failed，就重新创建
@@ -197,7 +200,6 @@ export class MainConnection {
                     mainConnSend: this.send.bind(this),
                     numOfSubConns: detail.fileTransfer.numOfSubConns,
                     fileList: this.fileList,
-                    goHome: this.goHome,
                     updateConnecting: this.updateConnecting,
                     updateFileListRecv: this.updateFileListRecv,
                     updateTransferSpeed: this.updateTransferSpeed,
@@ -235,6 +237,7 @@ export class MainConnection {
 
             // 网络环境评估
             case 'benchmarkResult':
+                this.fileTransfer.speedBenchmark.stopTimeout()
                 this.fileTransfer.speedBenchmark.result = detail.result
                 this.fileTransfer.speedBenchmark.showResult(detail.speed, detail.failedPercent)
                 this.updateConnecting(false)
