@@ -177,7 +177,6 @@ export default {
             this.$router.replace('/')
         },
         updateConnecting(value, progress, msg) {
-            console.log('updateConnecting: ', value, progress, msg)
             this.$nextTick(() => {
                 if(value !== undefined) this.connecting = value
                 if(progress) this.connectingProgress = progress

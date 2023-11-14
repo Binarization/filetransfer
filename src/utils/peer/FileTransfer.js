@@ -70,13 +70,10 @@ export class FileTransfer {
         }
         if(this.role === Role.INITIATOR && !this.isSubConnsReady() && this.mainConn._open) {
             if(this.numOfSubConns - this.numOfPreSubConns > 2) {
-                console.log('createSubConnIfNeeded: ', this.numOfSubConns, this.numOfPreSubConns)
                 this.numOfPreSubConns++
-                console.log('createSubConnIfNeeded: this.numOfPreSubConns++')
                 this.handleConnection(this.peer.connect(this.mainConn.peer, { reliable: true }))
             }
             this.numOfPreSubConns++
-            console.log('createSubConnIfNeeded: this.numOfPreSubConns++')
             this.handleConnection(this.peer.connect(this.mainConn.peer, { reliable: true }))
         }
     }
