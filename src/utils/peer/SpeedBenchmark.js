@@ -124,13 +124,20 @@ export class SpeedBenchmark {
         })
     }
 
-    getTimeoutLength(size) {
+    getTimeoutLength(size, retry) {
         if(this.isTimeout) {
             return -1
         }
-        let base = this.result * size / 1024 / 1024 * 1000 * 10 + 20000
-        // 确保最小超时时间为5s，并添加随机时间（100~200ms），防止同时发起的连接同时超时
-        return Math.max(base + Math.random() * 100, 5000)
+        let base = this.result * size / 1024 / 1024 * 1000 * 10 * (1 + 0.5 * retry)
+        // 确保最小超时时间为5s，并添加随机时间（2~5s），防止同时发起的连接同时超时
+        return Math.max(base + Math.random() * 3000 + 2000, 5000)
+    }
+
+    skip() {
+        this.stopTimeout()
+        this.running = false
+        this.isTimeout = true
+        this.onFinish()
     }
 
     destroy() {

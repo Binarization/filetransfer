@@ -168,7 +168,6 @@ export class MainConnection {
                 this.peerInfo = null
                 this.lastHeartbeat = -1
                 message.error('连接已断开')
-                this.goHome()
             })
 
             // 监听conn的peerConnection.connectionState，如果是failed，就重新创建

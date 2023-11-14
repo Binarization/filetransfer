@@ -163,7 +163,7 @@ export class FileTransfer {
             // 检查当前文件是否传输完毕
             if(this.transferringConns[conn.connectionId]) {
                 const { uid, index } = this.transferringConns[conn.connectionId]
-                const { file, chunk } = this.transferringChunks[`${uid}-${index}`]
+                const { file, chunk, retry } = this.transferringChunks[`${uid}-${index}`]
 
                 // 重新加入未完成队列
                 const isSender = this.fileList.send.find(file => file.uid === uid)
@@ -172,6 +172,7 @@ export class FileTransfer {
                     this.unfinishedChunks.push({
                         file, 
                         chunk,
+                        retry, 
                     })
                 }
 
@@ -332,9 +333,9 @@ export class FileTransfer {
         while(this.idleSubConns.length > 0) {
             if(this.unfinishedChunks.length > 0) {
                 let conn = this.idleSubConns.shift()
-                let { file, chunk } = this.unfinishedChunks.shift()
+                let { file, chunk, retry } = this.unfinishedChunks.shift()
                 
-                this.sendAreYouReady(conn, file, chunk)
+                this.sendAreYouReady(conn, file, chunk, retry)
             } else if(this.sendingFileList.length > 0) {
                 let conn = this.idleSubConns.shift()
                 let file = this.sendingFileList[0]
@@ -345,7 +346,7 @@ export class FileTransfer {
                     this.sendingFileList.shift()
                 }
 
-                this.sendAreYouReady(conn, file, chunk)
+                this.sendAreYouReady(conn, file, chunk, 0)
             } else {
                 break
             }
@@ -356,7 +357,7 @@ export class FileTransfer {
         }
     }
 
-    sendAreYouReady(conn, file, chunk) {
+    sendAreYouReady(conn, file, chunk, retry) {
         const uid = file.file.uid
         const index = chunk.index
         const id = `${uid}-${index}`
@@ -364,6 +365,7 @@ export class FileTransfer {
             conn, 
             file, 
             chunk,
+            retry, 
         }
         this.transferringConns[conn.connectionId] = {
             uid, 
@@ -424,7 +426,7 @@ export class FileTransfer {
     }
 
     async sendChunk(id) {
-        const { conn, file, chunk } = this.transferringChunks[id]
+        const { conn, file, chunk, retry } = this.transferringChunks[id]
         conn.fileReaderWorker.onmessage = (e) => {
             switch(typeof(e.data)) {
                 case 'object':
@@ -436,11 +438,11 @@ export class FileTransfer {
                             uint8Array: e.data,
                         }
                     })
-                    if(this.speedBenchmark.getTimeoutLength(chunk.blob.size) > 0) {
+                    if(this.speedBenchmark.getTimeoutLength(chunk.blob.size, retry) > 0) {
                         conn.timeout = setTimeout(() => {
                             console.error('send chunk timeout: ', conn, file, chunk)
                             conn.close()
-                        }, this.speedBenchmark.getTimeoutLength(chunk.blob.size))
+                        }, this.speedBenchmark.getTimeoutLength(chunk.blob.size, retry))
                     }
                     break
                 
