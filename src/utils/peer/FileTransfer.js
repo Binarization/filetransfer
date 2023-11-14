@@ -347,6 +347,10 @@ export class FileTransfer {
             } else {
                 break
             }
+            // 随机延时50~100ms
+            await new Promise((resolve) => {
+                setTimeout(resolve, Math.random() * 50 + 50)
+            })
         }
     }
 
@@ -430,11 +434,12 @@ export class FileTransfer {
                             uint8Array: e.data,
                         }
                     })
-                    conn.timeout = setTimeout(() => {
-                        console.error('send chunk timeout: ', conn, file, chunk)
-                        conn.close()
-                    }, this.speedBenchmark.getTimeoutLength(chunk.blob.size))
-                    console.log('send chunk: chunker', conn.chunker)
+                    if(this.speedBenchmark.getTimeoutLength(chunk.blob.size) > 0) {
+                        conn.timeout = setTimeout(() => {
+                            console.error('send chunk timeout: ', conn, file, chunk)
+                            conn.close()
+                        }, this.speedBenchmark.getTimeoutLength(chunk.blob.size))
+                    }
                     break
                 
                 case 'string':

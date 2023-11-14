@@ -126,11 +126,11 @@ export class SpeedBenchmark {
 
     getTimeoutLength(size) {
         if(this.isTimeout) {
-            return 60 * 1000
+            return -1
         }
         let base = this.result * size / 1024 / 1024 * 1000 * 10 + 20000
-        // 确保最小超时时间为5s
-        return base > 5000 ? base : 5000
+        // 确保最小超时时间为5s，并添加随机时间（100~200ms），防止同时发起的连接同时超时
+        return Math.max(base + Math.random() * 100, 5000)
     }
 
     destroy() {
