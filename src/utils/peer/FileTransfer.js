@@ -166,17 +166,22 @@ export class FileTransfer {
                 const { file, chunk } = this.transferringChunks[`${uid}-${index}`]
 
                 // 重新加入未完成队列
-                if(this.fileList.send.find(file => file.uid === uid)) {
+                const isSender = this.fileList.send.find(file => file.uid === uid)
+                if(isSender) {
                     console.log('subconn closed: chunk readded: ', file)
                     this.unfinishedChunks.push({
                         file, 
                         chunk,
                     })
-                    this.checkQueue()
                 }
 
                 delete this.transferringConns[conn.connectionId]
                 delete this.transferringChunks[`${uid}-${index}`]
+
+                if(isSender) {
+                    // 清除当前传输记录后再重新发送
+                    this.checkQueue()
+                }
             }
 
             // 延时一秒检查是否需要重新创建，避免对方关闭连接未来得及更新closed状态
