@@ -51,7 +51,10 @@
             </div>
         </div>
         <div class="content-container">
-            <a-spin :spinning="connecting" :tip="connectingMsg">
+            <a-spin :spinning="connecting">
+                <template #tip>
+                    {{ connectingMsg }}
+                </template>
                 <div class="container">
                     <span class="container-title">发送文件</span>
                     <div v-if="mainConnection.peerInfo === null" class="placeholder">等待加入会话</div>
@@ -178,6 +181,10 @@ export default {
         },
         updateConnecting(value, progress, msg) {
             this.$nextTick(() => {
+                if(!this.mainConnection.conn || !this.mainConnection.conn._open) {
+                    this.connecting = false
+                    return
+                }
                 if(value !== undefined) this.connecting = value
                 if(progress) this.connectingProgress = progress
                 if(msg) this.connectingMsg = msg

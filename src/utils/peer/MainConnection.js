@@ -145,8 +145,8 @@ export class MainConnection {
             }
         } else {
             // 如果没有连接，直接接受连接
-            this.updateConnecting(true, null, '正在初始化连接...')
             this.conn = conn
+            this.updateConnecting(true, null, '正在初始化连接...')
 
             this.conn.on('open', () => {
                 // 监听数据事件
@@ -167,6 +167,7 @@ export class MainConnection {
                 this.conn = null
                 this.peerInfo = null
                 this.lastHeartbeat = -1
+                this.updateConnecting(false)
                 message.error('连接已断开')
             })
 

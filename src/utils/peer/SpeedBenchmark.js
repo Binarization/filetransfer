@@ -29,7 +29,7 @@ export class SpeedBenchmark {
         this.onFinish = onFinish
     }
 
-    run() {
+    async run() {
         if (this.running) {
             return
         }
@@ -38,13 +38,17 @@ export class SpeedBenchmark {
         this.startTimestamp = Date.now()
         console.log('SpeedBenchmark: start')
         if(this.role === Role.INITIATOR) {
-            this.conns.forEach(conn => {
+            for(let conn of this.conns) {
                 this.ongoningConns.push(conn)
                 conn.send({
                     type: 'benchmark',
                     chunk: this.chunk,
                 })
-            })
+                // 随机延时50~100ms
+                await new Promise((resolve) => {
+                    setTimeout(resolve, Math.random() * 50 + 50)
+                })
+            }
         } else {
             this.ongoningConns = [...this.conns]
         }
@@ -100,16 +104,16 @@ export class SpeedBenchmark {
         if(this.onFinish) {
             this.onFinish()
         }
-        console.log('SpeedBenchmark: finish', `${speed}MB/s`, `${failedPercent * 100}%`, `getTimeoutLength: ${this.getTimeoutLength(4 * 1024 * 1024)}`)
+        console.log('SpeedBenchmark: finish', `${speed}MB/s`, `${failedPercent * 100}%`, `getTimeoutLength: ${this.getTimeoutLength(4 * 1024 * 1024, 0)}`)
         if(this.isTimeout) {
             this.showBadNetworkModal()
             return
         }
-        if(speed > 0.75 && failedPercent < 0.1) {
+        if(speed > 0.6 && failedPercent < 0.1) {
             message.success('当前连接质量优秀')
-        } else if(speed > 0.65 && failedPercent < 0.1) {
+        } else if(speed > 0.4 && failedPercent < 0.3) {
             message.success('当前连接质量良好')
-        } else if(speed > 0.5 && failedPercent < 0.2) {
+        } else if(speed > 0.1 && failedPercent < 0.5) {
             message.warning('当前连接质量一般')
         } else {
             this.showBadNetworkModal()
@@ -129,6 +133,7 @@ export class SpeedBenchmark {
             return -1
         }
         let base = this.result * size / 1024 / 1024 * 1000 * 10 * (1 + 0.5 * retry)
+        console.log(base)
         // 确保最小超时时间为5s，并添加随机时间（2~5s），防止同时发起的连接同时超时
         return Math.max(base + Math.random() * 3000 + 2000, 5000)
     }
