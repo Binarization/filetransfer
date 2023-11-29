@@ -163,12 +163,18 @@ export class MainConnection {
 
             // 监听连接关闭
             this.conn.on('close', () => {
-                // console.log('Connection closed')
+                console.log('Connection closed')
+                message.error('连接已断开')
+
+                if(this.role == Role.CONNECTOR) {
+                    // 如果是接入端，退出传输页面
+                    this.goHome()
+                }
+
                 this.conn = null
                 this.peerInfo = null
                 this.lastHeartbeat = -1
                 this.updateConnecting(false)
-                message.error('连接已断开')
             })
 
             // 监听conn的peerConnection.connectionState，如果是failed，就重新创建
