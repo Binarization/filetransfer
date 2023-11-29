@@ -23,6 +23,7 @@ export class SpeedBenchmark {
         this.startTimestamp = 0
         this.timeout = null
         this.isTimeout = false
+        this.finishSent = false
 
         this.createSubConnIfNeeded = createSubConnIfNeeded
         this.updateConnecting = updateConnecting
@@ -49,6 +50,7 @@ export class SpeedBenchmark {
                     setTimeout(resolve, Math.random() * 50 + 50)
                 })
             }
+            this.finishSent = true
         } else {
             this.ongoningConns = [...this.conns]
         }
@@ -64,10 +66,13 @@ export class SpeedBenchmark {
     }
 
     onConnDone(conn) {
+        console.log('onConnDone', this.ongoningConns)
         this.ongoningConns = this.ongoningConns.filter(c => c.label !== conn.label)
+        console.log('onConnDone', this.ongoningConns)
         this.records.push(new Date().getTime() - this.startTimestamp)
-        if (this.role === Role.INITIATOR && this.ongoningConns.length === 0) {
+        if (this.finishSent && this.ongoningConns.length === 0) {
             this.stopTimeout()
+            console.log('onConnDone: call finish()')
             this.finish()
         }
         this.updateConnecting(this.ongoningConns.length !== 0, null, `正在评估网络质量(${Math.round((1 - this.ongoningConns.length / this.conns.length) * 100)}%)...`)
