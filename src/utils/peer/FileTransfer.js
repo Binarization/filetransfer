@@ -16,7 +16,7 @@ export class FileTransfer {
         updateFileListRecv = null,
         updateTransferSpeed = null,
     } = {}){
-        this.chunkSize = 4 * 1024 * 1024
+        this.chunkSize = 8 * 1024 * 1024
         this.closed = false
         this.role = role
         this.peer = peer
@@ -272,7 +272,9 @@ export class FileTransfer {
                 blob: file.slice(i, this.chunkSize * (index + 1))
             })
         }
+
         console.log('presend: ', 'chucks: ', chucks)
+        console.time(`文件传输总耗时 ${file.name} (${file.uid})`)
 
         this.preSendFileList[file.uid] = {
             file,
@@ -415,6 +417,7 @@ export class FileTransfer {
         file.onProgress(file.file)
         if(file.sended === file.file.size) {
             console.timeEnd(`send(conn: ${this.numOfPreSubConns}, chunkSize: ${this.chunkSize}) ` + file.file.uid)
+            console.timeEnd(`文件传输总耗时 ${file.file.name} (${file.file.uid})`)
             file.file.status = 'done'
             file.onSuccess(file.file)
         }
